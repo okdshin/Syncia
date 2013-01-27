@@ -17,7 +17,7 @@ public:
 			work(io_service->GetRawIoServiceRef()),
 			command_dispatcher(
 				neuria::command::AsyncExecuter([this](boost::function<void ()> func){
-					this->io_service->GetRawIoServiceRef().dispatch(func);
+					this->io_service->GetRawIoServiceRef().post(func);
 				}),
 				neuria::command::OnFailedFunc()
 			),
@@ -80,7 +80,7 @@ public:
 				std::cout << this->connection_pool << std::endl;	
 			})
 		);
-		
+		/*	
 		this->cui_shell.Register("close", "close connection",
 			neuria::test::ShellFunc(
 					[this](const neuria::test::CuiShell::ArgList& arg_list){
@@ -91,6 +91,7 @@ public:
 				this->connection_pool.Remove(this->connection_pool.At(index));
 			})
 		);
+		*/
 	}
 
 	auto InitDispatcher() -> void {
