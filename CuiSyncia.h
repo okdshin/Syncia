@@ -17,7 +17,7 @@ public:
 			work(io_service->GetRawIoServiceRef()),
 			command_dispatcher(
 				neuria::command::AsyncExecuter([this](boost::function<void ()> func){
-					this->io_service->GetRawIoServiceRef().post(func);
+					this->io_service->GetRawIoServiceRef().dispatch(func);
 				}),
 				neuria::command::OnFailedFunc()
 			),
@@ -45,11 +45,13 @@ public:
 							}),
 							neuria::network::Connection::OnPeerClosedFunc(
 									[this](neuria::network::Connection::Ptr connection){
-								//todo:erase connection from pool
+								this->connection_pool.Remove(connection);
 							}),
 							neuria::network::OnFailedFunc()
 						);
-						this->connection_pool.push_back(connection);
+						std::cout << "Added!!" << std::endl;
+						this->connection_pool.Add(connection);
+						connection->StartReceive();
 					}), 
 					neuria::network::OnFailedFunc()
 				);	
@@ -62,13 +64,31 @@ public:
 					neuria::command::CommandId("message"), 
 					neuria::network::CreateByteArrayFromString(arg_list.at(1))
 				);
-				for(auto connection : connection_pool){
+				connection_pool.ForEach([&wrapper](
+						const neuria::network::Connection::Ptr& connection){
 					connection->Send(
 						wrapper.Serialize(),
 						neuria::network::OnSendedFunc(),
 						neuria::network::OnFailedFunc()
 					);
-				}
+				});
+			})
+		);
+		this->cui_shell.Register("pool", "show connection pool",
+			neuria::test::ShellFunc(
+					[this](const neuria::test::CuiShell::ArgList& arg_list){
+				std::cout << this->connection_pool << std::endl;	
+			})
+		);
+		
+		this->cui_shell.Register("close", "close connection",
+			neuria::test::ShellFunc(
+					[this](const neuria::test::CuiShell::ArgList& arg_list){
+
+				const auto index = 
+					boost::lexical_cast<unsigned int>(arg_list.at(1));
+				this->connection_pool.At(index)->Close();
+				this->connection_pool.Remove(this->connection_pool.At(index));
 			})
 		);
 	}
@@ -84,6 +104,7 @@ public:
 			})
 		);
 	}
+
 
 	auto Run() -> void {
 		boost::thread_group thread_group;
@@ -108,11 +129,11 @@ public:
 					}),
 					neuria::network::Connection::OnPeerClosedFunc(
 							[this](neuria::network::Connection::Ptr connection){
-						//todo:erase connection from pool
+						this->connection_pool.Remove(connection);
 					}),
 					neuria::network::OnFailedFunc()
 				);
-				this->connection_pool.push_back(connection);
+				this->connection_pool.Add(connection);
 				connection->StartReceive();
 			}),
 			neuria::network::OnFailedFunc([](
@@ -121,6 +142,9 @@ public:
 			})
 		);
 		server.StartAccept();
+		for(unsigned int i = 0; i < 300; ++i){
+			this->cui_shell.Call("link localhost 54321");
+		}
 		cui_shell.Start();
 		thread_group.join_all();
 	}
@@ -134,6 +158,6 @@ private:
 	boost::asio::io_service::work work;
 	neuria::command::CommandDispatcher command_dispatcher;
 	neuria::network::Client client;
-	std::vector<neuria::network::Connection::Ptr> connection_pool;
+	neuria::network::ConnectionPool connection_pool;
 };
 }
