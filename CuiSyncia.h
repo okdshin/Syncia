@@ -80,7 +80,6 @@ public:
 				std::cout << this->connection_pool << std::endl;	
 			})
 		);
-		/*	
 		this->cui_shell.Register("close", "close connection",
 			neuria::test::ShellFunc(
 					[this](const neuria::test::CuiShell::ArgList& arg_list){
@@ -88,10 +87,9 @@ public:
 				const auto index = 
 					boost::lexical_cast<unsigned int>(arg_list.at(1));
 				this->connection_pool.At(index)->Close();
-				this->connection_pool.Remove(this->connection_pool.At(index));
+				//this->connection_pool.Remove(this->connection_pool.At(index));
 			})
 		);
-		*/
 	}
 
 	auto InitDispatcher() -> void {
@@ -109,7 +107,7 @@ public:
 
 	auto Run() -> void {
 		boost::thread_group thread_group;
-		for(unsigned int i = 0; i < 10; ++i){
+		for(unsigned int i = 0; i < 5; ++i){
 			thread_group.create_thread(
 				boost::bind(&boost::asio::io_service::run, 
 					&io_service->GetRawIoServiceRef())
@@ -144,8 +142,8 @@ public:
 		);
 		server.StartAccept();
 		/*
-		for(unsigned int i = 0; i < 300; ++i){
-			this->cui_shell.Call("link localhost 54321");
+		for(unsigned int i = 0; i < 500; ++i){
+			this->cui_shell.Call("link wirelessia.net 20550");
 		}
 		*/
 		cui_shell.Start();
