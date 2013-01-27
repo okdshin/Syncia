@@ -142,9 +142,11 @@ public:
 			})
 		);
 		server.StartAccept();
+		/*
 		for(unsigned int i = 0; i < 300; ++i){
 			this->cui_shell.Call("link localhost 54321");
 		}
+		*/
 		cui_shell.Start();
 		thread_group.join_all();
 	}
