@@ -44,7 +44,7 @@ public:
 								this->command_dispatcher.Dispatch(byte_array);
 							}),
 							neuria::network::Connection::OnPeerClosedFunc(
-									[this](neuria::network::Connection::Ptr connection){
+									[this](const neuria::network::Connection::Ptr& connection){
 								this->connection_pool.Remove(connection);
 							}),
 							neuria::network::OnFailedFunc()
@@ -127,7 +127,7 @@ public:
 						this->command_dispatcher.Dispatch(byte_array);
 					}),
 					neuria::network::Connection::OnPeerClosedFunc(
-							[this](neuria::network::Connection::Ptr connection){
+							[this](const neuria::network::Connection::Ptr& connection){
 						this->connection_pool.Remove(connection);
 					}),
 					neuria::network::OnFailedFunc()
