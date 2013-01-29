@@ -74,6 +74,27 @@ public:
 				});
 			})
 		);
+		this->cui_shell.Register("sendn", "send text",
+			neuria::test::ShellFunc(
+					[this](const neuria::test::CuiShell::ArgList& arg_list){
+				const auto num = boost::lexical_cast<unsigned int>(arg_list.at(1));
+				for(unsigned int i = 0; i < num; ++i){
+					auto wrapper = neuria::command::DispatchCommandWrapper(
+						neuria::command::CommandId("message"), 
+						neuria::network::CreateByteArrayFromString(
+							arg_list.at(2)+boost::lexical_cast<std::string>(i))
+					);
+					connection_pool.ForEach([&wrapper](
+							const neuria::network::Connection::Ptr& connection){
+						connection->Send(
+							wrapper.Serialize(),
+							neuria::network::OnSendedFunc(),
+							neuria::network::OnFailedFunc()
+						);
+					});
+				}
+			})
+		);
 		this->cui_shell.Register("pool", "show connection pool",
 			neuria::test::ShellFunc(
 					[this](const neuria::test::CuiShell::ArgList& arg_list){
@@ -141,11 +162,9 @@ public:
 			})
 		);
 		server.StartAccept();
-		/*
-		for(unsigned int i = 0; i < 500; ++i){
+		for(unsigned int i = 0; i < 1/*500*/; ++i){
 			this->cui_shell.Call("link wirelessia.net 20550");
 		}
-		*/
 		cui_shell.Start();
 		thread_group.join_all();
 	}
