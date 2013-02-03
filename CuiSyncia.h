@@ -46,7 +46,8 @@ public:
 				}),
 				neuria::command::OnFailedFunc()
 			),
-			client(io_service){}
+			client(io_service),
+			download_directory_path(database::FileSystemPath("./")){}
 
 private:
 	auto CreateLink(
@@ -101,6 +102,20 @@ private:
 public:
 	auto InitShell() -> void {
 		neuria::test::RegisterExitFunc(this->cui_shell, "bye :)");		
+
+		this->cui_shell.Register("setdd", 
+			"<directory_name> set download directory path.", 
+			neuria::test::ShellFunc(
+					[this](const neuria::test::CuiShell::ArgList& arg_list){
+				std::ifstream ifs(arg_list.at(1));
+				if(!ifs){
+					std::cout << "directory not found" <<std::endl;
+					return;
+				}
+				this->SetDownloadDirectoryPath( 
+					database::FileSystemPath(arg_list.at(1)));
+			})
+		);
 
 		this->cui_shell.Register("upload", "<file_name> add file to upload list.", 
 			neuria::test::ShellFunc(
@@ -190,7 +205,7 @@ public:
 					CreateHostNameAndPortNumberFromNodeId(file_key_hash.GetOwnerId());
 
 				auto on_connected = neuria::network::OnConnectedFunc(
-						[this, &wrapper](neuria::network::Socket::Ptr socket){
+						[this, wrapper](neuria::network::Socket::Ptr socket){
 					std::cout << "Connected!" << std::endl;	
 					const auto connection = neuria::network::Connection::Create(
 						socket, this->buffer_size
@@ -198,7 +213,7 @@ public:
 					this->StartReceive(connection);
 					connection->Send(wrapper.Serialize(), 
 						neuria::network::OnSendedFunc([connection](){
-							connection->Close();	
+							//connection->Close();	
 						}),
 						neuria::network::OnFailedFunc()
 					);
@@ -212,6 +227,7 @@ public:
 				);	
 			})
 		);
+		
 		/*
 		this->cui_shell.Register("echon", 
 				"<number> <text> request echo text <number> times",
@@ -272,7 +288,7 @@ public:
 			neuria::command::OnReceivedFunc([this](
 					const neuria::command::ByteArraySender& sender, 
 					const neuria::command::ByteArray& received_byte_array){
-				const auto command = 
+				auto command = 
 					command::FileCommand::Parse(received_byte_array);
 				const auto hash_id = 
 					database::HashId::Parse(command.GetHashIdByteArray());
@@ -281,11 +297,46 @@ public:
 				<< std::endl;
 				
 				const auto file_key_hash = this->file_key_hash_db.GetByHashId(hash_id);
-				std::cout << file_key_hash << std::endl;
+				std::cout << "requested:" << file_key_hash << std::endl;
+				command.SetFileBodyByteArray(
+					database::SerializeFile(file_key_hash.GetFilePath()));
+				const auto wrapper = neuria::command::DispatchCommandWrapper(
+						syncia::command::FileCommand::GetPushCommandId(),
+						command.Serialize()
+					);
+				sender(wrapper.Serialize(), 
+					neuria::command::OnSendedFunc(), 
+					neuria::command::OnFailedFunc()
+				);
+			})
+		);
+		
+		this->command_dispatcher.RegisterFunc(
+			syncia::command::FileCommand::GetPushCommandId(),
+			neuria::command::OnReceivedFunc([this](
+					const neuria::command::ByteArraySender& sender, 
+					const neuria::command::ByteArray& received_byte_array){
+				auto command = 
+					command::FileCommand::Parse(received_byte_array);
+				const auto hash_id = 
+					database::HashId::Parse(command.GetHashIdByteArray());
+				const auto file_key_hash = this->file_key_hash_db.GetByHashId(hash_id);
+				std::cout << boost::format("file push request received:\"%1%\"")
+					% file_key_hash
+				<< std::endl;
+				database::ParseFile(
+					this->download_directory_path,
+					file_key_hash.GetFilePath(),
+					command.GetFileBodyByteArray()
+				);
 			})
 		);
 	}
 
+	auto SetDownloadDirectoryPath(
+			const database::FileSystemPath& download_directory_path) -> void {
+		this->download_directory_path = download_directory_path;
+	}
 
 	auto Run() -> void {
 		boost::thread_group thread_group;
@@ -328,5 +379,6 @@ private:
 	neuria::network::Client client;
 	neuria::network::ConnectionPool connection_pool;
 	database::FileKeyHashDb file_key_hash_db;
+	database::FileSystemPath download_directory_path;
 };
 }
