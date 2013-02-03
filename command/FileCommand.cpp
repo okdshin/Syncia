@@ -13,6 +13,8 @@ int main(int argc, char* argv[])
 	auto serialized_byte_array = command.Serialize();
 	//serialized_byte_array.erase(serialized_byte_array.begin(), serialized_byte_array.begin()+2);
 	std::cout << "parsed:\n" << FileCommand::Parse(serialized_byte_array) << std::endl;
+	command.SetFileBodyByteArray(neuria::command::CreateByteArrayFromString("test"));
+	std::cout << command << std::endl;
 
     return 0;
 }

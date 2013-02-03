@@ -7,7 +7,7 @@ using namespace syncia::command;
 
 int main(int argc, char* argv[])
 {
-	auto command = EchoCommand(neuria::command::CreateByteArrayFromString("hello"));
+	auto command = EchoCommand("hello");
 	std::cout << command << std::endl;
 	std::cout << neuria::command::CreateStringFromByteArray(command.Serialize()) << std::endl;
 	auto serialized_byte_array = command.Serialize();

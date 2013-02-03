@@ -47,25 +47,25 @@ private:
 	friend class boost::serialization::access;
 	template<class Archive>
 	void serialize(Archive& ar, unsigned int ver){
-		ar & byte_array;
+		ar & text;
 	}
 
 public:
-	EchoCommand(const neuria::command::ByteArray& byte_array) 
-		: byte_array(byte_array){}
+	EchoCommand(const std::string& text) 
+		: text(text){}
 
-	auto GetWrappedByteArray()const -> neuria::command::ByteArray {
-		return this->byte_array;	
+	auto GetText()const -> std::string {
+		return this->text;
 	}
 
 private:
-	neuria::command::ByteArray byte_array;
+	std::string text;;
 
 };
 
 inline auto operator<<(std::ostream& os, const EchoCommand& command) -> std::ostream& {
 	os << boost::format("echo:%1%") 
-		% neuria::command::CreateStringFromByteArray(command.GetWrappedByteArray());
+		% command.GetText();
 	return os;
 }
 
