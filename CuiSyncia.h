@@ -5,6 +5,9 @@
 #include <boost/thread.hpp>
 #include "Neuria/Neuria.h"
 #include "command/EchoCommand.h"
+#include "command/FileCommand.h"
+#include "database/FileKeyHashDb.h"
+#include "database/FileSystemPath.h"
 namespace syncia
 {
 class CuiSyncia{
@@ -39,30 +42,7 @@ private:
 			);
 			std::cout << "Added!!" << std::endl;
 			this->connection_pool.Add(connection);
-			connection->StartReceive(
-				neuria::network::OnReceivedFunc([this, connection](
-						const neuria::network::Socket::Ptr& socket,
-						const neuria::network::ByteArray& byte_array){
-					this->command_dispatcher.Dispatch(
-						neuria::command::ByteArraySender([connection](
-								const neuria::command::ByteArray& byte_array, 
-								const neuria::command::OnSendedFunc& on_sended, 
-								const neuria::command::OnFailedFunc& on_failed){
-							connection->Send(byte_array, 
-								neuria::network::OnSendedFunc(on_sended), 
-								neuria::network::OnFailedFunc(/*on_failed*/)
-							);	
-						}),
-						byte_array
-					);
-				}),
-				neuria::network::Connection::OnPeerClosedFunc(
-						[this](const neuria::network::Connection::Ptr& connection){
-					std::cout << "peer closed" << std::endl;
-					this->connection_pool.Remove(connection);
-				}),
-				neuria::network::OnFailedFunc()	
-			);
+			this->StartReceive(connection);
 		}); 
 		this->client.Connect(host_name, port_number, 
 			on_connected,
@@ -71,10 +51,53 @@ private:
 		
 	}
 
-public:
+	auto StartReceive(const neuria::network::Connection::Ptr& connection) -> void {
+		connection->StartReceive(
+			neuria::network::OnReceivedFunc([this, connection](
+					const neuria::network::ByteArray& byte_array){
+				this->command_dispatcher.Dispatch(
+					neuria::command::ByteArraySender([connection](
+							const neuria::command::ByteArray& byte_array, 
+							const neuria::command::OnSendedFunc& on_sended, 
+							const neuria::command::OnFailedFunc& on_failed){
+						connection->Send(byte_array, 
+							neuria::network::OnSendedFunc(on_sended), 
+							neuria::network::OnFailedFunc(/*todo!! on_failed*/)
+						);	
+					}),
+					byte_array
+				);
+			}),
+			neuria::network::Connection::OnPeerClosedFunc(
+					[this](const neuria::network::Connection::Ptr& connection){
+				std::cout << "peer closed" << std::endl;
+				this->connection_pool.Remove(connection);
+			}),
+			neuria::network::OnFailedFunc()	
+		);	
+	}
 
+public:
 	auto InitShell() -> void {
 		neuria::test::RegisterExitFunc(this->cui_shell, "bye :)");		
+
+		this->cui_shell.Register("upload", "<file_name> add file to upload list.", 
+			neuria::test::ShellFunc(
+					[this](const neuria::test::CuiShell::ArgList& arg_list){
+				this->file_key_hash_db.Add(
+					database::FileKeyHash(database::NodeId("test_node_id"), 
+						database::FileSystemPath(arg_list.at(1)))
+				);
+			})
+		);
+
+		this->cui_shell.Register("list", "show upload list.", 
+			neuria::test::ShellFunc(
+					[this](const neuria::test::CuiShell::ArgList& arg_list){
+				std::cout << this->file_key_hash_db << std::endl;
+			})
+		);
+		
 
 		this->cui_shell.Register("link", "<host_name> <port_num> create link.", 
 			neuria::test::ShellFunc(
@@ -103,7 +126,7 @@ public:
 			})
 		);
 
-		this->cui_shell.Register("echo", "<text> echo text",
+		this->cui_shell.Register("echo", "<text> request echo text",
 			neuria::test::ShellFunc(
 					[this](const neuria::test::CuiShell::ArgList& arg_list){
 				auto wrapper = neuria::command::DispatchCommandWrapper(
@@ -120,6 +143,25 @@ public:
 				});
 			})
 		);
+
+		/*
+		this->cui_shell.Register("echon", 
+				"<number> <text> request echo text <number> times",
+			neuria::test::ShellFunc(
+					[this](const neuria::test::CuiShell::ArgList& arg_list){
+				this->cui_shell.Call(boost::format("echo %1%") %);
+			})
+		);
+		*/
+		/*
+		this->cui_shell.Register("check", 
+				"<directory_path> check directory change",
+			neuria::test::ShellFunc(
+					[this](const neuria::test::CuiShell::ArgList& arg_list){
+				
+			})
+		);
+		*/
 	}
 
 	auto InitDispatcher() -> void {
@@ -128,7 +170,7 @@ public:
 			neuria::command::OnReceivedFunc([](
 					const neuria::command::ByteArraySender& sender, 
 					const neuria::command::ByteArray& received_byte_array){
-				std::cout << boost::format("received echo text:\"%1%\"")
+				std::cout << boost::format("requested echo text:\"%1%\"")
 					% neuria::network::CreateStringFromByteArray(received_byte_array) 
 				<< std::endl;
 				const auto dispatch_command = 
@@ -150,12 +192,31 @@ public:
 					const neuria::command::ByteArray& received_byte_array){
 				const auto command = 
 					command::EchoCommand::Parse(received_byte_array);
-				std::cout << boost::format("received echo text:\"%1%\"")
+				std::cout << boost::format("replied echo text:\"%1%\"")
 					% neuria::command::CreateStringFromByteArray(
 						command.GetWrappedByteArray())
 				<< std::endl;
 			})
 		);
+
+		/*
+		this->command_dispatcher.RegisterFunc(
+			syncia::command::FileCommand::GetPullCommandId(),
+			neuria::command::OnReceivedFunc([](
+					const neuria::command::ByteArraySender& sender, 
+					const neuria::command::ByteArray& received_byte_array){
+				const auto command = 
+					command::FileCommand::Parse(received_byte_array);
+				const auto hash_id = HashId::Parse(command.GetHashIdByteArray());
+				std::cout << boost::format("file pull received:\"%1%\"")
+					% hash_id.ToString()
+				<< std::endl;
+				
+				const auto file_key_hash = file_key_hash_db.GetByHashId(hash_id);
+				std::cout << file_key_hash << std::endl;
+			})
+		);
+		*/
 	}
 
 
@@ -177,55 +238,7 @@ public:
 				auto connection = 
 					neuria::network::Connection::Create(socket, buffer_size);
 				this->connection_pool.Add(connection);
-				/*
-				connection->StartReceive(
-					neuria::network::OnReceivedFunc([this, connection](
-							const neuria::network::Socket::Ptr& socket,
-							const neuria::network::ByteArray& byte_array){
-						this->command_dispatcher.Dispatch(
-							neuria::command::ByteArraySender([connection](
-									const neuria::command::ByteArray& byte_array, 
-									const neuria::command::OnSendedFunc& on_sended, 
-									const neuria::command::OnFailedFunc& on_failed){
-								connection->Send(byte_array, 
-									neuria::network::OnSendedFunc(on_sended), 
-									neuria::network::OnFailedFunc(on_failed));	
-							}),
-							byte_array
-						);
-					}),
-					neuria::network::Connection::OnPeerClosedFunc(
-							[this](const neuria::network::Connection::Ptr& connection){
-						std::cout << "peer closed" << std::endl;
-						this->connection_pool.Remove(connection);
-					}),
-					neuria::network::OnFailedFunc()	
-				);
-				*/
-				connection->StartReceive(
-					neuria::network::OnReceivedFunc([this, connection](
-							const neuria::network::Socket::Ptr& socket,
-							const neuria::network::ByteArray& byte_array){
-						this->command_dispatcher.Dispatch(
-							neuria::command::ByteArraySender([connection](
-									const neuria::command::ByteArray& byte_array, 
-									const neuria::command::OnSendedFunc& on_sended, 
-									const neuria::command::OnFailedFunc& on_failed){
-								connection->Send(byte_array, 
-									neuria::network::OnSendedFunc(on_sended), 
-									neuria::network::OnFailedFunc(/*on_failed*/)
-								);	
-							}),
-							byte_array
-						);
-					}),
-					neuria::network::Connection::OnPeerClosedFunc(
-							[this](const neuria::network::Connection::Ptr& connection){
-						std::cout << "peer closed" << std::endl;
-						this->connection_pool.Remove(connection);
-					}),
-					neuria::network::OnFailedFunc()	
-				);
+				this->StartReceive(connection);
 			}),
 			neuria::network::OnFailedFunc()
 		);
@@ -247,5 +260,6 @@ private:
 	neuria::command::CommandDispatcher command_dispatcher;
 	neuria::network::Client client;
 	neuria::network::ConnectionPool connection_pool;
+	database::FileKeyHashDb file_key_hash_db;
 };
 }
