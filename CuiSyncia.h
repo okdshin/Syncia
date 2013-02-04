@@ -32,6 +32,14 @@ auto CreateHostNameAndPortNumberFromNodeId(
 	return std::make_tuple(host_name, port_num);
 }
 
+auto OutputUseCount(
+		std::ostream& os, const neuria::network::Connection::Ptr connection) -> void {
+	os << boost::format("%1%:%2%") 
+		% connection.get() 
+		% connection.use_count()
+	<< std::endl;
+}
+
 class CuiSyncia{
 public:
     CuiSyncia(const neuria::network::HostName& host_name, 
@@ -62,9 +70,12 @@ private:
 			const auto connection = neuria::network::Connection::Create(
 				socket, this->buffer_size
 			);
+			OutputUseCount(std::cout << __LINE__ << ":", connection);
 			std::cout << "Added!!" << std::endl;
 			this->connection_pool.Add(connection);
+			OutputUseCount(std::cout << __LINE__ << ":", connection);
 			this->StartReceive(connection);
+			OutputUseCount(std::cout << __LINE__ << ":", connection);
 		}); 
 		this->client.Connect(host_name, port_number, 
 			on_connected,
@@ -77,11 +88,13 @@ private:
 		connection->StartReceive(
 			neuria::network::OnReceivedFunc([this, connection](
 					const neuria::network::ByteArray& byte_array){
+				OutputUseCount(std::cout << __LINE__ << ":", connection);
 				this->command_dispatcher.Dispatch(
 					neuria::command::ByteArraySender([connection](
 							const neuria::command::ByteArray& byte_array, 
 							const neuria::command::OnSendedFunc& on_sended, 
 							const neuria::command::OnFailedFunc& on_failed){
+						OutputUseCount(std::cout << __LINE__ << ":", connection);
 						connection->Send(byte_array, 
 							neuria::network::OnSendedFunc(on_sended), 
 							neuria::network::OnFailedFunc(/*todo!! on_failed*/)
@@ -93,7 +106,9 @@ private:
 			neuria::network::Connection::OnPeerClosedFunc(
 					[this](const neuria::network::Connection::Ptr& connection){
 				std::cout << "peer closed" << std::endl;
+				OutputUseCount(std::cout << __LINE__ << ":", connection);
 				this->connection_pool.Remove(connection);
+				OutputUseCount(std::cout << __LINE__ << ":", connection);
 			}),
 			neuria::network::OnFailedFunc()	
 		);	
@@ -168,7 +183,7 @@ public:
 				this->connection_pool.At(index)->Close();
 			})
 		);
-
+		
 		this->cui_shell.Register("echo", "<text> request echo text",
 			neuria::test::ShellFunc(
 					[this](const neuria::test::CuiShell::ArgList& arg_list){
@@ -178,6 +193,7 @@ public:
 				);
 				connection_pool.ForEach([&wrapper](
 						const neuria::network::Connection::Ptr& connection){
+					std::cout << "UseCount" << connection.use_count() << std::endl;
 					connection->Send(
 						wrapper.Serialize(),
 						neuria::network::OnSendedFunc(),
@@ -210,13 +226,16 @@ public:
 					const auto connection = neuria::network::Connection::Create(
 						socket, this->buffer_size
 					);
+					std::cout << "UseCount" << connection.use_count() << std::endl;
 					this->StartReceive(connection);
+					std::cout << "UseCount" << connection.use_count() << std::endl;
 					connection->Send(wrapper.Serialize(), 
 						neuria::network::OnSendedFunc([connection](){
 							//connection->Close();	
 						}),
 						neuria::network::OnFailedFunc()
 					);
+					std::cout << "UseCount" << connection.use_count() << std::endl;
 
 				}); 
 				this->client.Connect(
@@ -228,6 +247,41 @@ public:
 			})
 		);
 		
+		this->cui_shell.Register("mpull", 
+			"<host_name> <port_num> <hash_id> send pull request",
+			neuria::test::ShellFunc(
+					[this](const neuria::test::CuiShell::ArgList& arg_list){
+				const auto file_command = 
+					command::FileCommand(database::HashId(arg_list.at(3)).Serialize());
+				std::cout << file_command << std::endl;
+				auto wrapper = neuria::command::DispatchCommandWrapper(
+					syncia::command::FileCommand::GetPullCommandId(), 
+					file_command.Serialize()
+				);
+				
+				auto on_connected = neuria::network::OnConnectedFunc(
+						[this, wrapper](neuria::network::Socket::Ptr socket){
+					std::cout << "Connected!" << std::endl;	
+					const auto connection = neuria::network::Connection::Create(
+						socket, this->buffer_size
+					);
+					this->StartReceive(connection);
+					connection->Send(wrapper.Serialize(), 
+						neuria::network::OnSendedFunc([connection](){
+							//connection->Close();	
+						}),
+						neuria::network::OnFailedFunc()
+					);
+
+				}); 
+				this->client.Connect(
+					neuria::network::HostName(arg_list.at(1)),
+					neuria::network::PortNumber(arg_list.at(2)),
+					on_connected,
+					neuria::network::OnFailedFunc()
+				);	
+			})
+		);
 		/*
 		this->cui_shell.Register("echon", 
 				"<number> <text> request echo text <number> times",
@@ -361,9 +415,13 @@ public:
 			neuria::network::OnFailedFunc()
 		);
 		server.StartAccept();
-		for(unsigned int i = 0; i < 1/*500*/; ++i){
-			//this->cui_shell.Call("link wirelessia.net 20550");
+		/*
+		for(unsigned int i = 0; i < 500; ++i){
+			this->cui_shell.Call("link wirelessia.net 20550");
+			this->cui_shell.Call("close 0");
 		}
+		*/
+		this->cui_shell.Call("setdd ./download");
 		cui_shell.Start();
 		thread_group.join_all();
 	}
