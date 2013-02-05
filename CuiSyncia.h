@@ -47,16 +47,18 @@ public:
 			const neuria::network::PortNumber& port_num,
 			const neuria::network::BufferSize& buffer_size) 
 		: host_name(host_name), port_num(port_num), buffer_size(buffer_size),
-			cui_shell(), io_service(neuria::network::IoService::Create()), 
-			work(io_service->GetRawIoServiceRef()),
+			cui_shell(), work(io_service),
 			command_dispatcher(
 				neuria::command::AsyncExecuter([this](boost::function<void ()> func){
-					this->io_service->GetRawIoServiceRef().post(func);
+					this->io_service.post(func);
 				}),
 				neuria::command::OnFailedFunc()
 			),
 			client(io_service),
-			download_directory_path(database::FileSystemPath("./")){}
+			connection_pool(this->io_service),
+			download_directory_path(this->io_service){
+				download_directory_path.Assign(database::FileSystemPath("./"));
+			}
 
 private:
 	auto CreateLink(
@@ -172,7 +174,7 @@ public:
 					neuria::network::HostName(arg_list.at(1)),
 					neuria::network::PortNumber(
 						boost::lexical_cast<int>(arg_list.at(2)))
-				);	
+				);
 			})
 		);
 		
@@ -183,12 +185,16 @@ public:
 			})
 		);
 
-		this->cui_shell.Register("close", "<connection_index> close connection",
+		this->cui_shell.Register("close", "<host_name> <port_number> close connection",
 			neuria::test::ShellFunc(
 					[this](const neuria::test::CuiShell::ArgList& arg_list){
-				const auto index = 
-					boost::lexical_cast<unsigned int>(arg_list.at(1));
-				this->connection_pool.At(index)->Close();
+				this->connection_pool.PickUpAndApply(
+					neuria::network::HostName(arg_list.at(1)),
+					neuria::network::PortNumber(arg_list.at(2)),
+					[](const neuria::network::Connection::Ptr& connection){
+						connection->Close();
+					}
+				);
 			})
 		);
 		
@@ -199,7 +205,7 @@ public:
 					command::EchoCommand::GetRequestCommandId(), 
 					command::EchoCommand(arg_list.at(1)).Serialize()
 				);
-				connection_pool.ForEach([&wrapper](
+				connection_pool.ForEach([wrapper](
 						const neuria::network::Connection::Ptr& connection){
 					connection->Send(
 						wrapper.Serialize(),
@@ -378,30 +384,34 @@ public:
 					command::FileCommand::Parse(received_byte_array);
 				const auto hash_id = 
 					database::HashId::Parse(command.GetHashIdByteArray());
+				
+				//todo mpullでエラる
 				const auto file_key_hash = this->file_key_hash_db.GetByHashId(hash_id);
 				std::cout << boost::format("file push request received:\"%1%\"")
 					% file_key_hash
 				<< std::endl;
-				database::ParseFile(
-					this->download_directory_path,
-					file_key_hash.GetFilePath(),
-					command.GetFileBodyByteArray()
-				);
+				this->download_directory_path.Quote([file_key_hash, command](
+						const database::FileSystemPath& download_directory_path){
+					database::ParseFile(
+						download_directory_path,
+						file_key_hash.GetFilePath(),
+						command.GetFileBodyByteArray()
+					);	
+				});
 			})
 		);
 	}
 
 	auto SetDownloadDirectoryPath(
 			const database::FileSystemPath& download_directory_path) -> void {
-		this->download_directory_path = download_directory_path;
+		this->download_directory_path.Assign(download_directory_path);
 	}
 
 	auto Run() -> void {
 		boost::thread_group thread_group;
 		for(unsigned int i = 0; i < 5; ++i){
 			thread_group.create_thread(
-				boost::bind(&boost::asio::io_service::run, 
-					&io_service->GetRawIoServiceRef())
+				boost::bind(&boost::asio::io_service::run, &this->io_service)
 			);
 		}
 		std::cout << boost::format("ServerReady:\"%1%:%2%\"") 
@@ -419,12 +429,15 @@ public:
 			neuria::network::OnFailedFunc()
 		);
 		server.StartAccept();
-		for(unsigned int i = 0; i < 100; ++i){
-			this->cui_shell.Call("link localhost 54321");
+		for(unsigned int i = 0; i < 400; ++i){
+			//this->cui_shell.Call("link localhost 54321");
+			//this->cui_shell.Call("close 0");
 		}
+		/*
 		for(unsigned int i = 0; i < 500; ++i){
 			this->cui_shell.Call("echo helllo");
 		}
+		*/
 		this->cui_shell.Call("setdd ./download");
 		cui_shell.Start();
 		thread_group.join_all();
@@ -435,12 +448,12 @@ private:
 	const neuria::network::PortNumber port_num;
 	const neuria::network::BufferSize buffer_size;
 	neuria::test::CuiShell cui_shell;
-	neuria::network::IoService::Ptr io_service;
+	boost::asio::io_service io_service;
 	boost::asio::io_service::work work;
 	neuria::command::CommandDispatcher command_dispatcher;
 	neuria::network::Client client;
-	neuria::network::ConnectionPool connection_pool;//need strand
+	neuria::network::ConnectionPool connection_pool;//<-thread safe ;)
 	database::FileKeyHashDb file_key_hash_db;//need strand
-	database::FileSystemPath download_directory_path;//need strand
+	neuria::thread_safe::ThreadSafeVariable<database::FileSystemPath> download_directory_path;
 };
 }

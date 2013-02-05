@@ -1,7 +1,7 @@
 CXX = clang++ -std=gnu++0x
-CXXFLAGS = -Wall -g -D CUISYNCIA_UNIT_TEST -D BOOST_ASIO_ENABLE_HANDLER_TRACKING
+CXXFLAGS = -Wall -g -D CUISYNCIA_UNIT_TEST -D BOOST_ASIO_ENABLE_HANDLER_TRACKING -D__STRICT_ANSI__
 INCLUDES = 
-LIBS = -lboost_iostreams -lboost_serialization -lcrypto -lboost_thread -ldl -lpthread -lboost_system
+LIBS = -lboost_filesystem -lboost_date_time -lboost_iostreams -lboost_serialization -lcrypto -lboost_thread -ldl -lpthread -lboost_system
 OBJS = CuiSyncia.o
 PROGRAM = CuiSyncia.out
 
