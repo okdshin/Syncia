@@ -56,8 +56,8 @@ public:
 			),
 			client(io_service),
 			connection_pool(this->io_service),
-			download_directory_path(this->io_service){
-				download_directory_path.Assign(database::FileSystemPath("./"));
+			download_directory_path(this->io_service, 
+					database::FileSystemPath("./download")){
 			}
 
 private:
@@ -88,30 +88,25 @@ private:
 	}
 
 	auto StartReceive(const neuria::network::Connection::Ptr& connection) -> void {
-		boost::weak_ptr<neuria::network::Connection> connection_wp(connection);
 		connection->StartReceive(
-			neuria::network::OnReceivedFunc([this, connection_wp](
+			neuria::network::OnReceivedFunc([this, connection](
 					const neuria::network::ByteArray& byte_array){
-				//OutputUseCount(std::cout << __LINE__ << ":", connection_wp);
-				const auto connection = connection_wp.lock();
-				if(connection){
-					this->command_dispatcher.Dispatch(
-						neuria::command::ByteArraySender([connection](
-								const neuria::command::ByteArray& byte_array, 
-								const neuria::command::OnSendedFunc& on_sended, 
-								const neuria::command::OnFailedFunc& on_failed){
-							//OutputUseCount(std::cout << __LINE__ << ":", connection);
-							//const auto connection = connection_wp.lock();
-							if(connection){
-								connection->Send(byte_array, 
-									neuria::network::OnSendedFunc(on_sended), 
-									neuria::network::OnFailedFunc(/*todo!! on_failed*/)
-								);	
-							}
-						}),
-						byte_array
-					);
-				}
+				this->command_dispatcher.Dispatch(
+					neuria::command::ByteArraySender([connection](
+							const neuria::command::ByteArray& byte_array, 
+							const neuria::command::OnSendedFunc& on_sended, 
+							const neuria::command::OnFailedFunc& on_failed){
+						connection->Send(byte_array, 
+							neuria::network::OnSendedFunc(on_sended), 
+							neuria::network::OnFailedFunc(/*todo!! on_failed*/)
+						);	
+					}),
+					neuria::command::ConnectionCloser([connection]{
+						connection->Close();
+						std::cout << "connection closer called" << std::endl;
+					}),
+					byte_array
+				);
 			}),
 			neuria::network::Connection::OnPeerClosedFunc(
 					[this](const neuria::network::Connection::Ptr& connection){
@@ -239,6 +234,7 @@ public:
 					const auto connection = neuria::network::Connection::Create(
 						socket, this->buffer_size
 					);
+					this->connection_pool.Add(connection);
 					this->StartReceive(connection);
 					connection->Send(wrapper.Serialize(), 
 						neuria::network::OnSendedFunc([connection](){
@@ -293,15 +289,6 @@ public:
 			})
 		);
 		/*
-		this->cui_shell.Register("echon", 
-				"<number> <text> request echo text <number> times",
-			neuria::test::ShellFunc(
-					[this](const neuria::test::CuiShell::ArgList& arg_list){
-				this->cui_shell.Call(boost::format("echo %1%") %);
-			})
-		);
-		*/
-		/*
 		this->cui_shell.Register("check", 
 				"<directory_path> check directory change",
 			neuria::test::ShellFunc(
@@ -317,6 +304,7 @@ public:
 			syncia::command::EchoCommand::GetRequestCommandId(),
 			neuria::command::OnReceivedFunc([](
 					const neuria::command::ByteArraySender& sender, 
+					const neuria::command::ConnectionCloser& closer,
 					const neuria::command::ByteArray& received_byte_array){
 				const auto echo_command = command::EchoCommand::Parse(received_byte_array);
 				std::cout << boost::format("requested echo text:\"%1%\"")
@@ -338,6 +326,7 @@ public:
 			syncia::command::EchoCommand::GetReplyCommandId(),
 			neuria::command::OnReceivedFunc([](
 					const neuria::command::ByteArraySender& sender, 
+					const neuria::command::ConnectionCloser& closer,
 					const neuria::command::ByteArray& received_byte_array){
 				const auto command = 
 					command::EchoCommand::Parse(received_byte_array);
@@ -351,6 +340,7 @@ public:
 			syncia::command::FileCommand::GetPullCommandId(),
 			neuria::command::OnReceivedFunc([this](
 					const neuria::command::ByteArraySender& sender, 
+					const neuria::command::ConnectionCloser& closer,
 					const neuria::command::ByteArray& received_byte_array){
 				auto command = 
 					command::FileCommand::Parse(received_byte_array);
@@ -379,6 +369,7 @@ public:
 			syncia::command::FileCommand::GetPushCommandId(),
 			neuria::command::OnReceivedFunc([this](
 					const neuria::command::ByteArraySender& sender, 
+					const neuria::command::ConnectionCloser& closer,
 					const neuria::command::ByteArray& received_byte_array){
 				auto command = 
 					command::FileCommand::Parse(received_byte_array);
@@ -390,13 +381,15 @@ public:
 				std::cout << boost::format("file push request received:\"%1%\"")
 					% file_key_hash
 				<< std::endl;
-				this->download_directory_path.Quote([file_key_hash, command](
+				this->download_directory_path.Quote([file_key_hash, command, closer](
 						const database::FileSystemPath& download_directory_path){
+					std::cout << "quote called." << std::endl;
 					database::ParseFile(
 						download_directory_path,
 						file_key_hash.GetFilePath(),
 						command.GetFileBodyByteArray()
 					);	
+					closer();
 				});
 			})
 		);
