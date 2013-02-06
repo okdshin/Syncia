@@ -6,6 +6,8 @@
 *.dat
 .*.swp
 *.sh
+*.jpg
+*garbage*
 *neuria*
 *Neuria*
 *upload*
