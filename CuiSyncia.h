@@ -377,16 +377,19 @@ public:
 					database::HashId::Parse(command.GetHashIdByteArray());
 				
 				//todo mpullでエラる
+				/*
 				const auto file_key_hash = this->file_key_hash_db.GetByHashId(hash_id);
 				std::cout << boost::format("file push request received:\"%1%\"")
 					% file_key_hash
 				<< std::endl;
-				this->download_directory_path.Quote([file_key_hash, command, closer](
+				*/
+				this->download_directory_path.Quote([/*file_key_hash,*/ hash_id, command, closer](
 						const database::FileSystemPath& download_directory_path){
 					std::cout << "quote called." << std::endl;
 					database::ParseFile(
 						download_directory_path,
-						file_key_hash.GetFilePath(),
+						/*file_key_hash.GetFilePath().filename()*/
+						database::FileSystemPath(hash_id.ToString()),
 						command.GetFileBodyByteArray()
 					);	
 					closer();
