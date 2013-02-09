@@ -39,6 +39,7 @@ public:
 		}
 		catch(const std::exception& e){
 			std::cout << "Error:EchoCommand::Serialize:"<< e.what() << std::endl;	
+			throw e;
 		}
 		return neuria::command::CreateByteArrayFromString(ss.str());	
 	}

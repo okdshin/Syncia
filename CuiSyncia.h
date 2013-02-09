@@ -136,6 +136,16 @@ public:
 					database::FileSystemPath(arg_list.at(1)));
 			})
 		);
+		
+		this->cui_shell.Register("getdd", 
+			"get download directory path.", 
+			neuria::test::ShellFunc(
+					[this](const neuria::test::CuiShell::ArgList& arg_list){
+				this->download_directory_path.Quote([](const database::FileSystemPath& download_directory_path){
+					std::cout << download_directory_path << std::endl;	
+				});
+			})
+		);
 
 		this->cui_shell.Register("upload", "<file_name> add file to upload list.", 
 			neuria::test::ShellFunc(
@@ -199,6 +209,28 @@ public:
 				auto wrapper = neuria::command::DispatchCommandWrapper(
 					command::EchoCommand::GetRequestCommandId(), 
 					command::EchoCommand(arg_list.at(1)).Serialize()
+				);
+				connection_pool.ForEach([wrapper](
+						const neuria::network::Connection::Ptr& connection){
+					connection->Send(
+						wrapper.Serialize(),
+						neuria::network::OnSendedFunc(),
+						neuria::network::OnFailedFunc()
+					);
+				});
+			})
+		);
+		
+		this->cui_shell.Register("bigecho", "<byte_size> request echo big generated text",
+			neuria::test::ShellFunc(
+					[this](const neuria::test::CuiShell::ArgList& arg_list){
+				const neuria::command::ByteArray big_byte_array(
+					boost::lexical_cast<unsigned int>(arg_list.at(1)), 'a');
+				auto wrapper = neuria::command::DispatchCommandWrapper(
+					command::EchoCommand::GetRequestCommandId(), 
+					command::EchoCommand(
+						neuria::command::CreateStringFromByteArray(big_byte_array))
+							.Serialize()
 				);
 				connection_pool.ForEach([wrapper](
 						const neuria::network::Connection::Ptr& connection){
