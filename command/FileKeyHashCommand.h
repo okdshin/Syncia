@@ -1,6 +1,7 @@
 #pragma once
 //FileKeyHashCommand:20120913
 #include <iostream>
+#include <algorithm>
 #include <sstream>
 #include <boost/serialization/serialization.hpp>
 #include <boost/serialization/vector.hpp>
@@ -8,6 +9,8 @@
 #include <boost/archive/text_oarchive.hpp>
 #include <boost/archive/text_iarchive.hpp>
 #include "../Neuria/Neuria.h"
+#include "NodeId.h"
+#include "Keyword.h"
 
 namespace syncia{
 namespace command{
@@ -55,32 +58,73 @@ private:
 	friend class boost::serialization::access;
 	template<class Archive>
 	void serialize(Archive& ar, unsigned int ver){
-		ar & hash_id_byte_array;
+		ar & node_id_on_route_str_list & file_key_hash_byte_array_list;
 	}
 
 public:
-	FileKeyHashCommand(const neuria::command::ByteArray& hash_id_byte_array)
-		: hash_id_byte_array(hash_id_byte_array),
-		file_body_byte_array(){}
+	FileKeyHashCommand(
+			const NodeId& initial_sender_node_id, const Keyword& keyword) 
+			: keyword(keyword){
+		node_id_on_route_str_list.push_back(initial_sender_node_id.ToString());	
+	}
 
-	auto AddFileKeyHashByteArray(const neuria::command::ByteArray& byte_array) -> void {
+	auto GetInitialSenderNodeId()const -> NodeId {
+		return NodeId(this->node_id_on_route_str_list.front());	
+	}
+
+	auto GetCurrentHopCount()const -> unsigned int {
+		return this->node_id_on_route_str_list.size();	
+	}
+
+	auto GetKeyword()const -> Keyword {
+		return this->keyword;	
+	}
+
+	auto AddNodeIdOnRoute(const NodeId& node_id) -> void {
+		this->node_id_on_route_str_list.push_back(node_id.ToString());
+	}
+
+	auto GetNextPushNodeId(const NodeId& node_id) -> NodeId {
+		const auto found_iter = std::find(
+			this->node_id_on_route_str_list.begin(),
+			this->node_id_on_route_str_list.end(), 
+			node_id.ToString());
+		assert("please call and check that this is not initial sender." 
+			&& found_iter != this->node_id_on_route_str_list.begin());
+		if(found_iter == this->node_id_on_route_str_list.end()){
+			std::cout << 
+				"strange! anyway return the initial sender node_id" << std::endl;	
+			return NodeId(this->node_id_on_route_str_list.front());
+		}
+
+		return NodeId(*(found_iter-1));
+	}
+
+	auto AddFileKeyHashByteArray(
+			const neuria::command::ByteArray& byte_array) -> void {
 		this->file_key_hash_byte_array_list.push_back(byte_array);
 	}
 
-	auto ForEach(boost::function<(const neuria::command::ByteArray&)> func)const -> void {
+	auto ForEach(boost::function<void (
+			const neuria::command::ByteArray&)> func)const -> void {
 		for(const auto file_key_hash_byte_array : this->file_key_hash_byte_array_list){
-			func(file_key_hash);
+			func(file_key_hash_byte_array);
 		}
 	}
 
 private:
+	Keyword keyword;
+	std::vector<std::string> node_id_on_route_str_list;
 	std::vector<neuria::command::ByteArray> file_key_hash_byte_array_list;
 };
 
-inline auto operator<<(std::ostream& os, const FileKeyHashCommand& command) -> std::ostream& {
-	os << boost::format("FileKeyHashCommand:{HashId:\"%1%\", FileBody:\"%2%\"}") 
-		% neuria::command::CreateStringFromByteArray(command.GetHashIdByteArray())
-		% neuria::command::CreateStringFromByteArray(command.GetFileBodyByteArray());
+inline auto operator<<(
+		std::ostream& os, const FileKeyHashCommand& command) -> std::ostream& {
+	os << "FileKeyHashCommand:: Keyword:\"" 
+		<< command.GetKeyword().ToString() << "\", ";
+	command.ForEach([&os](const neuria::command::ByteArray& byte_array){
+		os << neuria::command::CreateStringFromByteArray(byte_array) << std::endl;	
+	});
 	return os;
 }
 

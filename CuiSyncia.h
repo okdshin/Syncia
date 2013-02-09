@@ -7,6 +7,8 @@
 #include "Neuria/Neuria.h"
 #include "command/EchoCommand.h"
 #include "command/FileCommand.h"
+#include "command/FileKeyHashCommand.h"
+#include "command/HopCount.h"
 #include "database/FileKeyHashDb.h"
 #include "database/FileSystemPath.h"
 namespace syncia
@@ -46,7 +48,8 @@ public:
     CuiSyncia(const neuria::network::HostName& host_name, 
 			const neuria::network::PortNumber& port_num,
 			const neuria::network::BufferSize& buffer_size) 
-		: host_name(host_name), port_num(port_num), buffer_size(buffer_size),
+		: node_id(CreateNodeIdFromHostNameAndPortNumber(host_name, port_num)), 
+			buffer_size(buffer_size),
 			cui_shell(), work(io_service),
 			command_dispatcher(
 				neuria::command::AsyncExecuter([this](boost::function<void ()> func){
@@ -57,7 +60,8 @@ public:
 			client(io_service),
 			connection_pool(this->io_service),
 			download_directory_path(this->io_service, 
-					database::FileSystemPath("./download")){
+					database::FileSystemPath("./download")),
+			max_hop_count(6){
 			}
 
 private:
@@ -132,7 +136,7 @@ public:
 					std::cout << "directory not found" <<std::endl;
 					return;
 				}
-				this->SetDownloadDirectoryPath( 
+				this->download_directory_path.Assign(
 					database::FileSystemPath(arg_list.at(1)));
 			})
 		);
@@ -157,14 +161,13 @@ public:
 				}
 				this->file_key_hash_db.Add(
 					database::FileKeyHash(
-						CreateNodeIdFromHostNameAndPortNumber(
-							this->host_name, this->port_num), 
+						this->node_id, 
 						database::FileSystemPath(arg_list.at(1)))
 				);
 			})
 		);
 
-		this->cui_shell.Register("list", "show upload list.", 
+		this->cui_shell.Register("db", "show upload db.", 
 			neuria::test::ShellFunc(
 					[this](const neuria::test::CuiShell::ArgList& arg_list){
 				std::cout << this->file_key_hash_db << std::endl;
@@ -193,7 +196,7 @@ public:
 		this->cui_shell.Register("close", "<host_name> <port_number> close connection",
 			neuria::test::ShellFunc(
 					[this](const neuria::test::CuiShell::ArgList& arg_list){
-				this->connection_pool.PickUpAndApply(
+				this->connection_pool.PickUpAndQuote(
 					neuria::network::HostName(arg_list.at(1)),
 					neuria::network::PortNumber(arg_list.at(2)),
 					[](const neuria::network::Connection::Ptr& connection){
@@ -320,6 +323,35 @@ public:
 				);	
 			})
 		);
+
+		this->cui_shell.Register("search", "[<keyword>] search file key hash",
+			neuria::test::ShellFunc(
+					[this](const neuria::test::CuiShell::ArgList& arg_list){
+				std::string keyword_str;
+				for(unsigned int i = 1; i < arg_list.size(); ++i){
+					keyword_str = keyword_str + arg_list.at(i) + " ";
+				}
+				const auto file_key_hash_command = 
+					command::FileKeyHashCommand(
+						command::NodeId(this->node_id.ToString()),
+						command::Keyword(keyword_str));
+				std::cout << file_key_hash_command << std::endl;
+				auto wrapper = neuria::command::DispatchCommandWrapper(
+					syncia::command::FileKeyHashCommand::GetFetchPullCommandId(), 
+					file_key_hash_command.Serialize()
+				);
+				
+				this->connection_pool.QuoteRandomConnection([wrapper](
+						const neuria::network::Connection::Ptr& connection){
+					connection->Send(
+						wrapper.Serialize(),
+						neuria::network::OnSendedFunc(),
+						neuria::network::OnFailedFunc()
+					);
+				});
+			})
+		);
+
 		/*
 		this->cui_shell.Register("check", 
 				"<directory_path> check directory change",
@@ -428,11 +460,124 @@ public:
 				});
 			})
 		);
-	}
 
-	auto SetDownloadDirectoryPath(
-			const database::FileSystemPath& download_directory_path) -> void {
-		this->download_directory_path.Assign(download_directory_path);
+		this->command_dispatcher.RegisterFunc(
+			syncia::command::FileKeyHashCommand::GetFetchPullCommandId(),
+			neuria::command::OnReceivedFunc([this](
+					const neuria::command::ByteArraySender& sender, 
+					const neuria::command::ConnectionCloser& closer,
+					const neuria::command::ByteArray& received_byte_array){
+				auto file_key_hash_command = 
+					command::FileKeyHashCommand::Parse(received_byte_array);
+				
+				file_key_hash_command.AddNodeIdOnRoute(
+					command::NodeId(this->node_id.ToString()));
+				if(this->max_hop_count < file_key_hash_command.GetCurrentHopCount()){
+					if(file_key_hash_command.GetInitialSenderNodeId() == 
+							command::NodeId(this->node_id.ToString())){
+						std::cout << "FetchPush returned initial sender!" << std::endl;
+						return;
+					}
+					const auto on_connected = neuria::network::OnConnectedFunc(
+							[this, file_key_hash_command](
+								neuria::network::Socket::Ptr socket){
+						const auto fetch_push_wrapper = 
+							neuria::command::DispatchCommandWrapper(
+								syncia::command::FileKeyHashCommand::GetFetchPushCommandId(), 
+								file_key_hash_command.Serialize());
+						std::cout << "Connected!" << std::endl;	
+						const auto connection = neuria::network::Connection::Create(
+							socket, this->buffer_size
+						);
+						std::cout << "Added!!" << std::endl;
+						this->connection_pool.Add(connection);
+						this->StartReceive(connection);
+						connection->Send(
+							fetch_push_wrapper.Serialize(),
+							neuria::network::OnSendedFunc(),
+							neuria::network::OnFailedFunc()
+						);
+
+					}); 
+					const auto next_node_id = file_key_hash_command.GetNextPushNodeId(
+						command::NodeId(this->node_id.ToString()));
+					const auto host_port_tuple = 
+						CreateHostNameAndPortNumberFromNodeId(
+							database::NodeId(next_node_id.ToString()));
+					this->client.Connect(
+						std::get<0>(host_port_tuple), 
+						std::get<1>(host_port_tuple),  
+						on_connected,
+						neuria::network::OnFailedFunc()
+					);	
+				}
+				
+				const auto fetch_pull_wrapper = neuria::command::DispatchCommandWrapper(
+					syncia::command::FileKeyHashCommand::GetFetchPullCommandId(), 
+					file_key_hash_command.Serialize()
+				);
+				this->connection_pool.QuoteRandomConnection([fetch_pull_wrapper](
+						const neuria::network::Connection::Ptr& connection){
+					connection->Send(
+						fetch_pull_wrapper.Serialize(),
+						neuria::network::OnSendedFunc(),
+						neuria::network::OnFailedFunc()
+					);
+				});
+				
+			})
+		);
+		
+		this->command_dispatcher.RegisterFunc(
+			syncia::command::FileKeyHashCommand::GetFetchPushCommandId(),
+			neuria::command::OnReceivedFunc([this](
+					const neuria::command::ByteArraySender& sender, 
+					const neuria::command::ConnectionCloser& closer,
+					const neuria::command::ByteArray& received_byte_array){
+				auto file_key_hash_command = 
+					command::FileKeyHashCommand::Parse(received_byte_array);
+				
+				file_key_hash_command.AddNodeIdOnRoute(
+					command::NodeId(this->node_id.ToString()));
+				if(file_key_hash_command.GetInitialSenderNodeId() == 
+						command::NodeId(this->node_id.ToString())){
+					std::cout << "FetchPush returned initial sender!" << std::endl;
+					return;
+				}
+				
+				const auto on_connected = neuria::network::OnConnectedFunc(
+						[this, file_key_hash_command](neuria::network::Socket::Ptr socket){
+					const auto fetch_push_wrapper = 
+						neuria::command::DispatchCommandWrapper(
+							syncia::command::FileKeyHashCommand::GetFetchPushCommandId(), 
+							file_key_hash_command.Serialize());
+					std::cout << "Connected!" << std::endl;	
+					const auto connection = neuria::network::Connection::Create(
+						socket, this->buffer_size
+					);
+					std::cout << "Added!!" << std::endl;
+					this->connection_pool.Add(connection);
+					this->StartReceive(connection);
+					connection->Send(
+						fetch_push_wrapper.Serialize(),
+						neuria::network::OnSendedFunc(),
+						neuria::network::OnFailedFunc()
+					);
+
+				}); 
+				const auto next_node_id = file_key_hash_command.GetNextPushNodeId(
+					command::NodeId(this->node_id.ToString()));
+				const auto host_port_tuple = 
+					CreateHostNameAndPortNumberFromNodeId(
+						database::NodeId(next_node_id.ToString()));
+				this->client.Connect(
+					std::get<0>(host_port_tuple), 
+					std::get<1>(host_port_tuple),  
+					on_connected,
+					neuria::network::OnFailedFunc()
+				);	
+			})
+		);
 	}
 
 	auto Run() -> void {
@@ -442,10 +587,13 @@ public:
 				boost::bind(&boost::asio::io_service::run, &this->io_service)
 			);
 		}
-		std::cout << boost::format("ServerReady:\"%1%:%2%\"") 
-			% host_name.ToString() % port_num.ToInt()
+		std::cout << boost::format("ServerReady:\"%1%\"") 
+			% this->node_id.ToString()
 		<< std::endl;
-		neuria::network::Server server(this->io_service, this->port_num,
+		
+		const auto host_port_tuple = CreateHostNameAndPortNumberFromNodeId(this->node_id); 
+
+		neuria::network::Server server(this->io_service, std::get<1>(host_port_tuple),
 			neuria::network::OnAcceptedFunc(
 					[this](neuria::network::Socket::Ptr socket){
 				std::cout << "accepted!" << std::endl;
@@ -472,8 +620,7 @@ public:
 	}
 
 private:
-	const neuria::network::HostName host_name;
-	const neuria::network::PortNumber port_num;
+	const database::NodeId node_id;
 	const neuria::network::BufferSize buffer_size;
 	neuria::test::CuiShell cui_shell;
 	boost::asio::io_service io_service;
@@ -483,5 +630,6 @@ private:
 	neuria::network::ConnectionPool connection_pool;//<-thread safe ;)
 	database::FileKeyHashDb file_key_hash_db;//need strand
 	neuria::thread_safe::ThreadSafeVariable<database::FileSystemPath> download_directory_path;
+	const command::HopCount max_hop_count;
 };
 }
