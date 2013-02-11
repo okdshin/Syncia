@@ -552,6 +552,7 @@ public:
 						command::NodeId(this->node_id.ToString())){
 					file_key_hash_command.ForEach(
 						[this](const database::ByteArray& byte_array){
+							std::cout << "added" << std::endl;
 							this->file_key_hash_db.Add(
 								database::FileKeyHash::Parse(byte_array));
 					});

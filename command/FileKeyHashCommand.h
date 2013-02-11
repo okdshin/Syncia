@@ -58,13 +58,13 @@ private:
 	friend class boost::serialization::access;
 	template<class Archive>
 	void serialize(Archive& ar, unsigned int ver){
-		ar & node_id_on_route_str_list & file_key_hash_byte_array_list;
+		ar & keyword_str & node_id_on_route_str_list & file_key_hash_byte_array_list;
 	}
 
 public:
 	FileKeyHashCommand(
 			const NodeId& initial_sender_node_id, const Keyword& keyword) 
-			: keyword(keyword){
+			: keyword_str(keyword.ToString()){
 		node_id_on_route_str_list.push_back(initial_sender_node_id.ToString());	
 	}
 
@@ -77,7 +77,7 @@ public:
 	}
 
 	auto GetKeyword()const -> Keyword {
-		return this->keyword;	
+		return Keyword(this->keyword_str);	
 	}
 
 	auto AddNodeIdOnRoute(const NodeId& node_id) -> void {
@@ -113,7 +113,7 @@ public:
 	}
 
 private:
-	Keyword keyword;
+	std::string keyword_str;
 	std::vector<std::string> node_id_on_route_str_list;
 	std::vector<neuria::command::ByteArray> file_key_hash_byte_array_list;
 };
