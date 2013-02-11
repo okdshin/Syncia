@@ -107,7 +107,10 @@ public:
 
 	auto ForEach(boost::function<void (
 			const neuria::command::ByteArray&)> func)const -> void {
-		for(const auto file_key_hash_byte_array : this->file_key_hash_byte_array_list){
+		std::cout << "for each outer" << std::endl;
+		for(const auto& file_key_hash_byte_array : 
+				this->file_key_hash_byte_array_list){
+			std::cout << "for each inner" << std::endl;
 			func(file_key_hash_byte_array);
 		}
 	}

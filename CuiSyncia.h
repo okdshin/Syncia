@@ -469,6 +469,7 @@ public:
 					const neuria::command::ByteArray& received_byte_array){
 				auto file_key_hash_command = 
 					command::FileKeyHashCommand::Parse(received_byte_array);
+				std::cout << file_key_hash_command << std::endl;
 
 				const auto keyword = file_key_hash_command.GetKeyword();
 				const auto found_file_key_hash_list = 
@@ -545,16 +546,20 @@ public:
 					const neuria::command::ByteArray& received_byte_array){
 				auto file_key_hash_command = 
 					command::FileKeyHashCommand::Parse(received_byte_array);
+				std::cout << file_key_hash_command << std::endl;
 				
 				file_key_hash_command.AddNodeIdOnRoute(
 					command::NodeId(this->node_id.ToString()));
 				if(file_key_hash_command.GetInitialSenderNodeId() == 
 						command::NodeId(this->node_id.ToString())){
 					file_key_hash_command.ForEach(
-						[this](const database::ByteArray& byte_array){
-							std::cout << "added" << std::endl;
-							this->file_key_hash_db.Add(
-								database::FileKeyHash::Parse(byte_array));
+							[this](const neuria::command::ByteArray& byte_array){
+						const auto file_key_hash = 
+							database::FileKeyHash::Parse(byte_array);
+						std::cout << file_key_hash << std::endl;
+						std::cout << "added" << std::endl;
+						this->file_key_hash_db.Add(file_key_hash);
+								
 					});
 					std::cout << "FetchPush returned initial sender!" << std::endl;
 					return;

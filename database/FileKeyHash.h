@@ -89,8 +89,8 @@ public:
 				boost::posix_time::second_clock::universal_time());	
 	}
 	
-	static auto Parse(const neuria::command::ByteArray& byte_array) -> FileKeyHash {
-		std::stringstream ss(neuria::command::CreateStringFromByteArray(byte_array));
+	static auto Parse(const ByteArray& byte_array) -> FileKeyHash {
+		std::stringstream ss(CreateStringFromByteArray(byte_array));
 		boost::archive::text_iarchive ia(ss);
 		auto file_key_hash = FileKeyHash();
 		ia >> file_key_hash;
