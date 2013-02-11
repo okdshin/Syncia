@@ -28,6 +28,7 @@ public:
 	FileKeyHashDb() : hash_list(){}
 
 	auto Add(const FileKeyHash& key_hash) -> void {
+		std::cout << "add outer" << std::endl;
 		auto is_equal_to_key_hash = 
 			[&key_hash](const FileKeyHash& e) -> bool {
 				return key_hash.GetHashId() == e.GetHashId()
@@ -40,6 +41,7 @@ public:
 				is_equal_to_key_hash, key_hash);
 		}
 		else{
+			std::cout << "add inner" << std::endl;
 			this->hash_list.push_back(key_hash);
 		}
 	}

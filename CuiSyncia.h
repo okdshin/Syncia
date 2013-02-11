@@ -483,11 +483,13 @@ public:
 				file_key_hash_command.AddNodeIdOnRoute(
 					command::NodeId(this->node_id.ToString()));
 				if(this->max_hop_count < file_key_hash_command.GetCurrentHopCount()){
+					/*
 					if(file_key_hash_command.GetInitialSenderNodeId() == 
 							command::NodeId(this->node_id.ToString())){
-						std::cout << "FetchPush returned initial sender!" << std::endl;
-						return;
+						std::cout << "FetchPull returned initial sender!" << std::endl;
+						//return;
 					}
+					*/
 					const auto on_connected = neuria::network::OnConnectedFunc(
 							[this, file_key_hash_command](
 								neuria::network::Socket::Ptr socket){
@@ -554,9 +556,10 @@ public:
 						command::NodeId(this->node_id.ToString())){
 					file_key_hash_command.ForEach(
 							[this](const neuria::command::ByteArray& byte_array){
+						std::cout << "for each ininin" << std::endl;
 						const auto file_key_hash = 
 							database::FileKeyHash::Parse(byte_array);
-						std::cout << file_key_hash << std::endl;
+						std::cout << "received!: " << file_key_hash << std::endl;
 						std::cout << "added" << std::endl;
 						this->file_key_hash_db.Add(file_key_hash);
 								
@@ -648,8 +651,9 @@ private:
 	neuria::command::CommandDispatcher command_dispatcher;
 	neuria::network::Client client;
 	neuria::network::ConnectionPool connection_pool;//<-thread safe ;)
-	database::FileKeyHashDb file_key_hash_db;//need strand
-	neuria::thread_safe::ThreadSafeVariable<database::FileSystemPath> download_directory_path;
+	database::FileKeyHashDb file_key_hash_db;//todo need strand!!!!
+	neuria::thread_safe::ThreadSafeVariable<database::FileSystemPath> 
+		download_directory_path;
 	const command::HopCount max_hop_count;
 };
 }
