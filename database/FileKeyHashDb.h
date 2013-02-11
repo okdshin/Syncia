@@ -7,6 +7,7 @@
 #include <iterator>
 #include <algorithm>
 #include <boost/format.hpp>
+#include <boost/algorithm/string.hpp>
 #include "FileKeyHash.h"
 
 namespace syncia{
@@ -24,9 +25,6 @@ inline auto operator<<(std::ostream& os,
 
 class FileKeyHashDb{
 public:
-	//using ApplyFunc = boost::function<void (FileKeyHash&)>;
-	//using IsErasedDecider = boost::function<bool (const FileKeyHash&)>;
-
 	FileKeyHashDb() : hash_list(){}
 
 	auto Add(const FileKeyHash& key_hash) -> void {
@@ -46,31 +44,24 @@ public:
 		}
 	}
 
-	/*
-	auto Erase(IsErasedDecider decider) -> void {
-		this->hash_list.erase(
-			std::remove_if(this->hash_list.begin(), this->hash_list.end(), 
-				[decider](const FileKeyHash& key_hash) -> bool {
-					return decider(key_hash)();
-				}),
-			this->hash_list.end()
-		);
-	}
-	auto Search(const KeywordList& search_keyword_list) -> FileKeyHashList {
-		for(const auto& key_hash : this->hash_list){
-			this->os << key_hash.GetKeyword() << "|";
-			for(const auto& keyword : search_keyword_list()){
-				this->os << keyword << " ";	
-			}
-		}
+	auto Search(const Keyword& keyword) -> FileKeyHashList {
+		std::vector<std::string> keyword_str_list;
+		auto raw_keyword_str = keyword.ToString();
+		boost::algorithm::split(
+			keyword_str_list, raw_keyword_str, boost::is_any_of(" "));
+		//AND search
 		auto end = std::partition(this->hash_list.begin(), this->hash_list.end(), 
-			[&](const FileKeyHash& key_hash){
-				return CalcSimilarity(
-					search_keyword_list, key_hash.GetKeyword()) > this->threshold;	
+			[&keyword_str_list](const FileKeyHash& key_hash){
+				for(const auto& keyword_str : keyword_str_list){
+					if(!boost::contains(
+							key_hash.GetKeyword().ToString(), keyword_str)){
+						return false;
+					}
+				}
+				return true;
 			});
 		return FileKeyHashList(this->hash_list.begin(), end);
 	}
-	*/
 
 	auto GetByHashId(const HashId& hash_id) -> FileKeyHash {
 		auto found = std::find_if(this->hash_list.begin(), this->hash_list.end(), 
@@ -110,35 +101,6 @@ public:
 		return newer_list;
 	}
 
-	/*
-	auto GetFileKeyHashList() -> FileKeyHashList {
-		return this->hash_list;	
-	}
-
-	auto Erase(const HashId& hash_id) -> void {
-		this->hash_list.erase(
-			std::remove_if(this->hash_list.begin(), this->hash_list.end(), 
-				[&hash_id](const FileKeyHash& key_hash){
-					return key_hash.GetHashId()() == hash_id(); }), 
-			this->hash_list.end());	
-	}
-
-	auto Erase(const neuria::ByteArray& src_data) -> void {
-		this->hash_list.erase(
-			std::remove_if(this->hash_list.begin(), this->hash_list.end(), 
-				[&src_data](const FileKeyHash& key_hash)
-					{ return key_hash.GetHashId()() == CalcHashId(src_data)(); }), 
-			this->hash_list.end());	
-	}
-
-	auto Erase(const FileSystemPath& file_path) -> void {
-		this->hash_list.erase(
-			std::remove_if(this->hash_list.begin(), this->hash_list.end(), 
-				[&file_path](const FileKeyHash& key_hash)
-					{ return key_hash.GetFilePath() == file_path; }), 
-			this->hash_list.end());		
-	}
-	*/
 	auto Clear() -> void {
 		this->hash_list.clear();	
 	}

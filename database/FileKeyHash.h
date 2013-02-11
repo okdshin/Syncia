@@ -88,6 +88,27 @@ public:
 			= boost::posix_time::to_simple_string(
 				boost::posix_time::second_clock::universal_time());	
 	}
+	
+	static auto Parse(const neuria::command::ByteArray& byte_array) -> FileKeyHash {
+		std::stringstream ss(neuria::command::CreateStringFromByteArray(byte_array));
+		boost::archive::text_iarchive ia(ss);
+		auto file_key_hash = FileKeyHash();
+		ia >> file_key_hash;
+		return file_key_hash;
+	}
+	
+	auto Serialize()const -> ByteArray {
+		std::stringstream ss;
+		boost::archive::text_oarchive oa(ss);
+		try{
+			oa << static_cast<const FileKeyHash&>(*this);
+		}
+		catch(const std::exception& e){
+			std::cout << "FileKeyHash::Serialize:"<< e.what() << std::endl;	
+			throw e;
+		}
+		return CreateByteArrayFromString(ss.str());	
+	}
 
 private:
 	friend class boost::serialization::access;

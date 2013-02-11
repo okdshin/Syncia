@@ -13,6 +13,10 @@ int main(int argc, char* argv[])
 	database.Add(CreateTestFileKeyHash());
 	database.Add(CreateTestFileKeyHash());
 	std::cout << database << std::endl;
+	std::cout << database.Search(Keyword("test")) << std::endl;
+	std::cout << database.Search(Keyword("hello")) << std::endl;
+	std::cout << database.Search(Keyword("test hello")) << std::endl;
+	std::cout << database.Search(Keyword("t est")) << std::endl;
 
 	return 0;
 }
