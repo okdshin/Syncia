@@ -78,12 +78,9 @@ private:
 			const auto connection = neuria::network::Connection::Create(
 				socket, this->buffer_size
 			);
-			OutputUseCount(std::cout << __LINE__ << ":", connection);//2
 			std::cout << "Added!!" << std::endl;
 			this->connection_pool.Add(connection);
-			OutputUseCount(std::cout << __LINE__ << ":", connection);//3
 			this->StartReceive(connection);
-			OutputUseCount(std::cout << __LINE__ << ":", connection);//5
 		}); 
 		this->client.Connect(host_name, port_number, 
 			on_connected,
@@ -442,24 +439,17 @@ public:
 					const neuria::command::ByteArraySender& sender, 
 					const neuria::command::ConnectionCloser& closer,
 					const neuria::command::ByteArray& received_byte_array){
-				auto command = 
+				auto file_command = 
 					command::FileCommand::Parse(received_byte_array);
 				const auto hash_id = 
-					database::HashId::Parse(command.GetHashIdByteArray());
+					database::HashId::Parse(file_command.GetHashIdByteArray());
 				
-				//todo mpullでエラる
-				/*
-				const auto file_key_hash = this->file_key_hash_db.GetByHashId(hash_id);
-				std::cout << boost::format("file push request received:\"%1%\"")
-					% file_key_hash
-				<< std::endl;
-				*/
-				this->download_directory_path.Quote([/*file_key_hash,*/ hash_id, command, closer](
+				this->download_directory_path.Quote([hash_id, file_command, closer](
 						const database::FileSystemPath& download_directory_path){
 					std::cout << "quote called." << std::endl;
 					database::ParseFile(
 						download_directory_path,
-						/*file_key_hash.GetFilePath().filename()*/
+						//file_key_hash.GetFilePath().filename(),
 						database::FileSystemPath(hash_id.ToString()),
 						command.GetFileBodyByteArray()
 					);	
@@ -482,19 +472,20 @@ public:
 				this->file_key_hash_db.QuoteSearch(
 					database::Keyword(keyword.ToString()), 
 					[this, file_key_hash_command](
-							const database::FileKeyHashList& found_file_key_hash_list)mutable{
+							const database::FileKeyHashList& found_file_key_hash_list){
+						auto temp_file_key_hash_command = file_key_hash_command;
 						for(const auto& file_key_hash : found_file_key_hash_list){
-							file_key_hash_command.AddFileKeyHashByteArray(
+							temp_file_key_hash_command.AddFileKeyHashByteArray(
 								file_key_hash.Serialize());
 						}
 						//file_key_hash_command.AddFileKeyHash()
 						
-						file_key_hash_command.AddNodeIdOnRoute(
+						temp_file_key_hash_command.AddNodeIdOnRoute(
 							command::NodeId(this->node_id.ToString()));
-						if(this->max_hop_count < file_key_hash_command.GetCurrentHopCount()){
-							if(file_key_hash_command.GetInitialSenderNodeId() == 
+						if(this->max_hop_count < temp_file_key_hash_command.GetCurrentHopCount()){
+							if(temp_file_key_hash_command.GetInitialSenderNodeId() == 
 									command::NodeId(this->node_id.ToString())){
-								file_key_hash_command.ForEach(
+								temp_file_key_hash_command.ForEach(
 										[this](const neuria::command::ByteArray& byte_array){
 									std::cout << "for each ininin" << std::endl;
 									const auto file_key_hash = 
@@ -508,12 +499,12 @@ public:
 								return;
 							}
 							const auto on_connected = neuria::network::OnConnectedFunc(
-									[this, file_key_hash_command](
+									[this, temp_file_key_hash_command](
 										neuria::network::Socket::Ptr socket){
 								const auto fetch_push_wrapper = 
 									neuria::command::DispatchCommandWrapper(
 										syncia::command::FileKeyHashCommand::GetFetchPushCommandId(), 
-										file_key_hash_command.Serialize());
+										temp_file_key_hash_command.Serialize());
 								std::cout << "Connected!" << std::endl;	
 								const auto connection = neuria::network::Connection::Create(
 									socket, this->buffer_size
@@ -528,7 +519,7 @@ public:
 								);
 
 							}); 
-							const auto next_node_id = file_key_hash_command.GetNextPushNodeId(
+							const auto next_node_id = temp_file_key_hash_command.GetNextPushNodeId(
 								command::NodeId(this->node_id.ToString()));
 							const auto host_port_tuple = 
 								CreateHostNameAndPortNumberFromNodeId(
@@ -543,7 +534,7 @@ public:
 						
 						const auto fetch_pull_wrapper = neuria::command::DispatchCommandWrapper(
 							syncia::command::FileKeyHashCommand::GetFetchPullCommandId(), 
-							file_key_hash_command.Serialize()
+							temp_file_key_hash_command.Serialize()
 						);
 						this->connection_pool.QuoteRandomConnection([fetch_pull_wrapper](
 								const neuria::network::Connection::Ptr& connection){

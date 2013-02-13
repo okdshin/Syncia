@@ -7,7 +7,7 @@ using namespace neuria::network;
 
 int main(int argc, char* argv[])
 {
-	HostName host_name("192.168.11.64");	
+	HostName host_name("192.168.11.112");	
 	PortNumber port_number(54321);
 	
 	if(argc > 2){
