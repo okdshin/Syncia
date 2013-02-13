@@ -89,8 +89,10 @@ public:
 			this->node_id_on_route_str_list.begin(),
 			this->node_id_on_route_str_list.end(), 
 			node_id.ToString());
+		
 		assert("please call and check that this is not initial sender." 
 			&& found_iter != this->node_id_on_route_str_list.begin());
+		
 		if(found_iter == this->node_id_on_route_str_list.end()){
 			std::cout << 
 				"strange! anyway return the initial sender node_id" << std::endl;	
