@@ -7,7 +7,7 @@ using namespace neuria::network;
 
 int main(int argc, char* argv[])
 {
-	HostName host_name("192.168.11.112");	
+	HostName host_name("172.16.11.148");	
 	PortNumber port_number(54321);
 	
 	if(argc > 2){
@@ -19,6 +19,7 @@ int main(int argc, char* argv[])
 		neuria::network::BufferSize(256));
 	cui_syncia.InitShell();
 	cui_syncia.InitDispatcher();
+	cui_syncia.InitTimer();
 	cui_syncia.Run();
 
     return 0;

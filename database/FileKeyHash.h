@@ -28,12 +28,9 @@ inline auto SerializeFile(const FileSystemPath& file_path) -> ByteArray {
 	return whole_byte_array;
 }
 
-inline auto ParseFile(const FileSystemPath& download_directory_path, 
-		const FileSystemPath& file_path, 
+inline auto ParseFile(const FileSystemPath& file_path, 
 		const ByteArray& file_byte_array) -> void {
-	std::ofstream ofs(
-		(download_directory_path/file_path.leaf()).string().c_str(), 
-		std::ios::binary);
+	boost::filesystem::ofstream ofs(file_path, std::ios::binary);
 	ofs.write(static_cast<char*>(static_cast<void*>(const_cast<uint8_t*>(
 		&file_byte_array.front()))), file_byte_array.size());
 	ofs.close();

@@ -1,7 +1,7 @@
 CXX = g++ -std=gnu++0x
 CXXFLAGS = -Wall -g -D FILESYSTEMPATH_UNIT_TEST
 INCLUDES = 
-LIBS =
+LIBS = -lboost_filesystem -lboost_system
 OBJS = FileSystemPath.o
 PROGRAM = FileSystemPath.out
 

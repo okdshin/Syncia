@@ -47,17 +47,17 @@ private:
 	friend class boost::serialization::access;
 	template<class Archive>
 	void serialize(Archive& ar, unsigned int ver){
-		ar & hash_id_byte_array;
+		ar & file_key_hash_byte_array;
 		ar & file_body_byte_array;
 	}
 
 public:
-	FileCommand(const neuria::command::ByteArray& hash_id_byte_array)
-		: hash_id_byte_array(hash_id_byte_array),
+	FileCommand(const neuria::command::ByteArray& file_key_hash_byte_array)
+		: file_key_hash_byte_array(file_key_hash_byte_array),
 		file_body_byte_array(){}
 
-	auto GetHashIdByteArray()const -> neuria::command::ByteArray {
-		return this->hash_id_byte_array;	
+	auto GetFileKeyHashByteArray()const -> neuria::command::ByteArray {
+		return this->file_key_hash_byte_array;	
 	}
 
 	auto SetFileBodyByteArray(const neuria::command::ByteArray& byte_array) -> void {
@@ -69,13 +69,13 @@ public:
 	}
 
 private:
-	neuria::command::ByteArray hash_id_byte_array;
+	neuria::command::ByteArray file_key_hash_byte_array;
 	neuria::command::ByteArray file_body_byte_array;
 };
 
 inline auto operator<<(std::ostream& os, const FileCommand& command) -> std::ostream& {
 	os << boost::format("FileCommand:{HashId:\"%1%\", FileBody:\"%2%\"}") 
-		% neuria::command::CreateStringFromByteArray(command.GetHashIdByteArray())
+		% neuria::command::CreateStringFromByteArray(command.GetFileKeyHashByteArray())
 		% neuria::command::CreateStringFromByteArray(command.GetFileBodyByteArray());
 	return os;
 }

@@ -51,6 +51,15 @@ public:
 		});
 	}
 
+	auto Remove(boost::function<bool (const FileKeyHash&)> decider) -> void {
+		this->strand->post([this, decider](){
+			const auto new_end = 
+				std::remove_if(
+					this->hash_list.begin(), this->hash_list.end(), decider);
+			this->hash_list.erase(new_end, this->hash_list.end());
+		});
+	}
+
 	auto QuoteSearch(
 			const Keyword& keyword, 
 			boost::function<void (const FileKeyHashList&)> func)const -> void {
@@ -113,7 +122,8 @@ public:
 			boost::function<void (const FileKeyHashList&)> func)const -> void {
 		this->strand->post([this, max_count, func](){
 			if(max_count > this->hash_list.size()){
-				return this->hash_list;	
+				func(this->hash_list);
+				return;
 			}
 
 			auto temp_hash_list = this->hash_list;

@@ -67,6 +67,13 @@ public:
 			: keyword_str(keyword.ToString()){
 		node_id_on_route_str_list.push_back(initial_sender_node_id.ToString());	
 	}
+	
+	//for spread
+	FileKeyHashCommand(
+			const NodeId& initial_sender_node_id) 
+			: keyword_str(""){
+		node_id_on_route_str_list.push_back(initial_sender_node_id.ToString());	
+	}
 
 	auto GetInitialSenderNodeId()const -> NodeId {
 		return NodeId(this->node_id_on_route_str_list.front());	
