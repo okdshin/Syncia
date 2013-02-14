@@ -46,10 +46,12 @@ auto OutputUseCount(
 
 class CuiSyncia{
 public:
-    CuiSyncia(const neuria::network::HostName& host_name, 
+    CuiSyncia(boost::asio::io_service& io_service,
+			const neuria::network::HostName& host_name, 
 			const neuria::network::PortNumber& port_num,
 			const neuria::network::BufferSize& buffer_size) 
-		: node_id(CreateNodeIdFromHostNameAndPortNumber(host_name, port_num)), 
+		: io_service(io_service), 
+			node_id(CreateNodeIdFromHostNameAndPortNumber(host_name, port_num)), 
 			buffer_size(buffer_size),
 			cui_shell(), work(io_service),
 			command_dispatcher(
@@ -891,10 +893,12 @@ public:
 			neuria::network::OnFailedFunc()
 		);
 		server.StartAccept();
+		/*
 		for(unsigned int i = 0; i < 400; ++i){
 			//this->cui_shell.Call("link localhost 54321");
 			//this->cui_shell.Call("close 0");
 		}
+		*/
 		/*
 		for(unsigned int i = 0; i < 500; ++i){
 			this->cui_shell.Call("echo helllo");
@@ -906,10 +910,10 @@ public:
 	}
 
 private:
+	boost::asio::io_service& io_service;
 	const database::NodeId node_id;
 	const neuria::network::BufferSize buffer_size;
 	neuria::test::CuiShell cui_shell;
-	boost::asio::io_service io_service;
 	boost::asio::io_service::work work;
 	neuria::command::CommandDispatcher command_dispatcher;
 	neuria::network::Client client;

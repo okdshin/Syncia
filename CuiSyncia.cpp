@@ -14,7 +14,9 @@ int main(int argc, char* argv[])
 		host_name = HostName(std::string(argv[1]));
 		port_number = (boost::lexical_cast<int>(argv[2]));
 	}
+	boost::asio::io_service io_service;
 	CuiSyncia cui_syncia(
+		io_service,
 		host_name, port_number,
 		neuria::network::BufferSize(256));
 	cui_syncia.InitShell();
