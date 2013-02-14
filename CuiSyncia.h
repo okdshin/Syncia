@@ -859,7 +859,7 @@ public:
 		this->multiple_timer.AddCallbackFuncAndStartTimer(
 			this->check_upload_directory_interval,
 			neuria::timer::TimerCallbackFunc([this]() -> neuria::timer::IsContinue {
-				this->cui_shell.Call(rmold);
+				this->cui_shell.Call("rmold");
 				return neuria::timer::IsContinue(true);
 			}),
 			neuria::timer::OnTimerErasedFunc()
