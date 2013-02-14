@@ -8,7 +8,7 @@ namespace syncia {
 namespace database {
 using FileSystemPath = boost::filesystem::path;
 
-auto CreateNecessaryDirectory(const FileSystemPath& file_path) -> void {
+inline auto CreateNecessaryDirectory(const FileSystemPath& file_path) -> void {
 	assert(!boost::filesystem::is_directory(file_path));
 	boost::filesystem::create_directories(file_path.parent_path());
 }

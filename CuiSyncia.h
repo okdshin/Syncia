@@ -14,13 +14,13 @@
 #include "database/FileSystemPath.h"
 namespace syncia
 {
-auto CreateNodeIdFromHostNameAndPortNumber(
+inline auto CreateNodeIdFromHostNameAndPortNumber(
 		const neuria::network::HostName& host_name,
 		const neuria::network::PortNumber& port_num) -> database::NodeId {
 	return database::NodeId(host_name.ToString()+":"+port_num.ToString());
 }
 
-auto CreateHostNameAndPortNumberFromNodeId(
+inline auto CreateHostNameAndPortNumberFromNodeId(
 		const database::NodeId& node_id) 
 			-> std::tuple<neuria::network::HostName, neuria::network::PortNumber>{
 	std::vector<std::string> result_str_list;
@@ -36,7 +36,7 @@ auto CreateHostNameAndPortNumberFromNodeId(
 	return std::make_tuple(host_name, port_num);
 }
 
-auto OutputUseCount(
+inline auto OutputUseCount(
 		std::ostream& os, const neuria::network::Connection::Ptr connection) -> void {
 	os << boost::format("%1%:%2%") 
 		% connection.get() 

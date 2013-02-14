@@ -20,11 +20,11 @@ private:
 	unsigned int hop_count;
 };
 
-auto operator<(const HopCount& left, const HopCount& right) -> bool {
+inline auto operator<(const HopCount& left, const HopCount& right) -> bool {
 	return left.ToInt() < right.ToInt();
 }
 
-auto operator<<(std::ostream& os, const HopCount& hop_count) -> std::ostream& {
+inline auto operator<<(std::ostream& os, const HopCount& hop_count) -> std::ostream& {
 	os << "HopCount:" << hop_count.ToInt();
 	return os;
 }
