@@ -49,11 +49,12 @@ public:
     CuiSyncia(boost::asio::io_service& io_service,
 			const neuria::network::HostName& host_name, 
 			const neuria::network::PortNumber& port_num,
-			const neuria::network::BufferSize& buffer_size) 
-		: io_service(io_service), 
+			const neuria::network::BufferSize& buffer_size,
+			std::ostream& os=std::cout) 
+		: os(os), io_service(io_service), 
 			node_id(CreateNodeIdFromHostNameAndPortNumber(host_name, port_num)), 
 			buffer_size(buffer_size),
-			cui_shell(), work(io_service),
+			cui_shell(os), work(io_service),
 			command_dispatcher(
 				neuria::command::AsyncExecuter([this](boost::function<void ()> func){
 					this->io_service.post(func);
@@ -76,16 +77,16 @@ private:
 	auto CreateLink(
 			const neuria::network::HostName& host_name,
 			const neuria::network::PortNumber& port_number) -> void {
-		std::cout << boost::format("ConnectTo\"%1%:%2%\"") 
+		this->os << boost::format("ConnectTo\"%1%:%2%\"") 
 			% host_name% port_number
 		<< std::endl;
 		auto on_connected = neuria::network::OnConnectedFunc(
 				[this](neuria::network::Socket::Ptr socket){
-			std::cout << "Connected!" << std::endl;	
+			this->os << "Connected!" << std::endl;	
 			const auto connection = neuria::network::Connection::Create(
 				socket, this->buffer_size
 			);
-			std::cout << "Added!!" << std::endl;
+			this->os << "Added!!" << std::endl;
 			this->connection_pool.Add(connection);
 			this->StartReceive(connection);
 		}); 
@@ -110,19 +111,19 @@ private:
 							neuria::network::OnFailedFunc(/*todo!! on_failed*/)
 						);	
 					}),
-					neuria::command::ConnectionCloser([connection]{
+					neuria::command::ConnectionCloser([this, connection]{
 						connection->Close();
-						std::cout << "connection closer called" << std::endl;
+						this->os << "connection closer called" << std::endl;
 					}),
 					byte_array
 				);
 			}),
 			neuria::network::Connection::OnPeerClosedFunc(
 					[this](const neuria::network::Connection::Ptr& connection){
-				std::cout << "peer closed" << std::endl;
-				OutputUseCount(std::cout << __LINE__ << ":", connection);//8
+				this->os << "peer closed" << std::endl;
+				OutputUseCount(this->os << __LINE__ << ":", connection);//8
 				this->connection_pool.Remove(connection);
-				OutputUseCount(std::cout << __LINE__ << ":", connection);//7
+				OutputUseCount(this->os << __LINE__ << ":", connection);//7
 			}),
 			neuria::network::OnFailedFunc()	
 		);	
@@ -138,7 +139,7 @@ public:
 					[this](const neuria::test::CuiShell::ArgList& arg_list){
 				std::ifstream ifs(arg_list.at(1));
 				if(!ifs){
-					std::cout << "directory not found" <<std::endl;
+					this->os << "directory not found" <<std::endl;
 					return;
 				}
 				this->download_directory_path.Assign(
@@ -151,8 +152,9 @@ public:
 			neuria::test::ShellFunc(
 					[this](const neuria::test::CuiShell::ArgList& arg_list){
 				this->download_directory_path.Quote(
-						[](const database::FileSystemPath& download_directory_path){
-					std::cout << download_directory_path << std::endl;	
+						[this](
+							const database::FileSystemPath& download_directory_path){
+					this->os << download_directory_path << std::endl;	
 				});
 			})
 		);
@@ -162,7 +164,7 @@ public:
 					[this](const neuria::test::CuiShell::ArgList& arg_list){
 				std::ifstream ifs(arg_list.at(1));
 				if(!ifs){
-					std::cout << "file not found" <<std::endl;
+					this->os << "file not found" <<std::endl;
 					return;
 				}
 				this->file_key_hash_db.Add(
@@ -176,7 +178,7 @@ public:
 		this->cui_shell.Register("db", "show upload db.", 
 			neuria::test::ShellFunc(
 					[this](const neuria::test::CuiShell::ArgList& arg_list){
-				std::cout << this->file_key_hash_db << std::endl;
+				this->os << this->file_key_hash_db << std::endl;
 			})
 		);
 		
@@ -195,7 +197,7 @@ public:
 		this->cui_shell.Register("pool", "show connection pool",
 			neuria::test::ShellFunc(
 					[this](const neuria::test::CuiShell::ArgList& arg_list){
-				std::cout << this->connection_pool << std::endl;	
+				this->os << this->connection_pool << std::endl;	
 			})
 		);
 
@@ -268,7 +270,7 @@ public:
 					[this](const database::FileKeyHash& file_key_hash){	
 						const auto file_command = 
 							command::FileCommand(file_key_hash.Serialize());
-						std::cout << file_command << std::endl;
+						this->os << file_command << std::endl;
 						auto wrapper = neuria::command::DispatchCommandWrapper(
 							syncia::command::FileCommand::GetPullCommandId(), 
 							file_command.Serialize()
@@ -279,7 +281,7 @@ public:
 						
 						auto on_connected = neuria::network::OnConnectedFunc(
 								[this, wrapper](neuria::network::Socket::Ptr socket){
-							std::cout << "Connected!" << std::endl;	
+							this->os << "Connected!" << std::endl;	
 							const auto connection = neuria::network::Connection::Create(
 								socket, this->buffer_size
 							);
@@ -311,7 +313,7 @@ public:
 					[this](const neuria::test::CuiShell::ArgList& arg_list){
 				const auto file_command = 
 					command::FileCommand(database::HashId(arg_list.at(3)).Serialize());
-				std::cout << file_command << std::endl;
+				this->os << file_command << std::endl;
 				auto wrapper = neuria::command::DispatchCommandWrapper(
 					syncia::command::FileCommand::GetPullCommandId(), 
 					file_command.Serialize()
@@ -319,7 +321,7 @@ public:
 				
 				auto on_connected = neuria::network::OnConnectedFunc(
 						[this, wrapper](neuria::network::Socket::Ptr socket){
-					std::cout << "Connected!" << std::endl;	
+					this->os << "Connected!" << std::endl;	
 					const auto connection = neuria::network::Connection::Create(
 						socket, this->buffer_size
 					);
@@ -352,7 +354,7 @@ public:
 					command::FileKeyHashCommand(
 						command::NodeId(this->node_id.ToString()),
 						command::Keyword(keyword_str));
-				std::cout << file_key_hash_command << std::endl;
+				this->os << file_key_hash_command << std::endl;
 				auto wrapper = neuria::command::DispatchCommandWrapper(
 					syncia::command::FileKeyHashCommand::GetFetchPullCommandId(), 
 					file_key_hash_command.Serialize()
@@ -375,7 +377,7 @@ public:
 				const auto file_key_hash_command = 
 					command::FileKeyHashCommand(
 						command::NodeId(this->node_id.ToString()));
-				std::cout << file_key_hash_command << std::endl;
+				this->os << file_key_hash_command << std::endl;
 				auto wrapper = neuria::command::DispatchCommandWrapper(
 					syncia::command::FileKeyHashCommand::GetSpreadPullCommandId(), 
 					file_key_hash_command.Serialize()
@@ -398,7 +400,7 @@ public:
 					[this](const neuria::test::CuiShell::ArgList& arg_list){
 				auto directory_path = database::FileSystemPath(arg_list.at(1));
 				if(!boost::filesystem::is_directory(directory_path)){
-					std::cout << directory_path << " is not directory." << std::endl;
+					this->os << directory_path << " is not directory." << std::endl;
 					return;
 				}
 				const auto end_iter = boost::filesystem::recursive_directory_iterator();
@@ -431,12 +433,12 @@ public:
 	auto InitDispatcher() -> void {
 		this->command_dispatcher.RegisterFunc(
 			syncia::command::EchoCommand::GetRequestCommandId(),
-			neuria::command::OnReceivedFunc([](
+			neuria::command::OnReceivedFunc([this](
 					const neuria::command::ByteArraySender& sender, 
 					const neuria::command::ConnectionCloser& closer,
 					const neuria::command::ByteArray& received_byte_array){
 				const auto echo_command = command::EchoCommand::Parse(received_byte_array);
-				std::cout << boost::format("requested echo text:\"%1%\"")
+				this->os << boost::format("requested echo text:\"%1%\"")
 					% echo_command.GetText()
 				<< std::endl;
 				const auto dispatch_command = 
@@ -453,13 +455,13 @@ public:
 		
 		this->command_dispatcher.RegisterFunc(
 			syncia::command::EchoCommand::GetReplyCommandId(),
-			neuria::command::OnReceivedFunc([](
+			neuria::command::OnReceivedFunc([this](
 					const neuria::command::ByteArraySender& sender, 
 					const neuria::command::ConnectionCloser& closer,
 					const neuria::command::ByteArray& received_byte_array){
 				const auto command = 
 					command::EchoCommand::Parse(received_byte_array);
-				std::cout << boost::format("replied echo text:\"%1%\"")
+				this->os << boost::format("replied echo text:\"%1%\"")
 					% command.GetText()
 				<< std::endl;
 			})
@@ -475,14 +477,14 @@ public:
 					command::FileCommand::Parse(received_byte_array);
 				const auto file_key_hash = 
 					database::FileKeyHash::Parse(file_command.GetFileKeyHashByteArray());
-				std::cout << boost::format("file pull request received:\"%1%\"")
+				this->os << boost::format("file pull request received:\"%1%\"")
 					% file_key_hash
 				<< std::endl;
 				
 				this->file_key_hash_db.QuoteByHashId(file_key_hash.GetHashId(), 
-					[file_command, sender](const database::FileKeyHash& file_key_hash){
+					[this, file_command, sender](const database::FileKeyHash& file_key_hash){
 						auto temp_file_command = file_command;
-						std::cout << "requested:" << file_key_hash << std::endl;
+						this->os << "requested:" << file_key_hash << std::endl;
 						temp_file_command.SetFileBodyByteArray(
 							database::SerializeFile(file_key_hash.GetFilePath()));
 						const auto wrapper = neuria::command::DispatchCommandWrapper(
@@ -509,9 +511,9 @@ public:
 				const auto file_key_hash = 
 					database::FileKeyHash::Parse(file_command.GetFileKeyHashByteArray());
 				
-				this->download_directory_path.Quote([file_key_hash, file_command, closer](
+				this->download_directory_path.Quote([this, file_key_hash, file_command, closer](
 						const database::FileSystemPath& download_directory_path){
-					std::cout << "quote called." << std::endl;
+					this->os << "quote called." << std::endl;
 					database::CreateNecessaryDirectory(
 						download_directory_path / file_key_hash.GetFilePath());
 					database::ParseFile(
@@ -532,7 +534,7 @@ public:
 					const neuria::command::ByteArray& received_byte_array){
 				auto file_key_hash_command = 
 					command::FileKeyHashCommand::Parse(received_byte_array);
-				std::cout << file_key_hash_command << std::endl;
+				this->os << file_key_hash_command << std::endl;
 
 				const auto keyword = file_key_hash_command.GetKeyword();
 				this->file_key_hash_db.QuoteSearch(
@@ -555,11 +557,11 @@ public:
 										[this](const neuria::command::ByteArray& byte_array){
 									const auto file_key_hash = 
 										database::FileKeyHash::Parse(byte_array);
-									std::cout << "received!: " << file_key_hash << std::endl;
+									this->os << "received!: " << file_key_hash << std::endl;
 									this->file_key_hash_db.Add(file_key_hash);
 											
 								});
-								std::cout << "FetchPull returned initial sender!" << std::endl;
+								this->os << "FetchPull returned initial sender!" << std::endl;
 								return;
 							}
 							const auto on_connected = neuria::network::OnConnectedFunc(
@@ -569,11 +571,11 @@ public:
 									neuria::command::DispatchCommandWrapper(
 										syncia::command::FileKeyHashCommand::GetFetchPushCommandId(), 
 										temp_file_key_hash_command.Serialize());
-								std::cout << "Connected!" << std::endl;	
+								this->os << "Connected!" << std::endl;	
 								const auto connection = neuria::network::Connection::Create(
 									socket, this->buffer_size
 								);
-								std::cout << "Added!!" << std::endl;
+								this->os << "Added!!" << std::endl;
 								this->connection_pool.Add(connection);
 								this->StartReceive(connection);
 								connection->Send(
@@ -624,7 +626,7 @@ public:
 					const neuria::command::ByteArray& received_byte_array){
 				auto file_key_hash_command = 
 					command::FileKeyHashCommand::Parse(received_byte_array);
-				std::cout << file_key_hash_command << std::endl;
+				this->os << file_key_hash_command << std::endl;
 				
 				file_key_hash_command.AddNodeIdOnRoute(
 					command::NodeId(this->node_id.ToString()));
@@ -632,15 +634,15 @@ public:
 						command::NodeId(this->node_id.ToString())){
 					file_key_hash_command.ForEach(
 							[this](const neuria::command::ByteArray& byte_array){
-						std::cout << "for each ininin" << std::endl;
+						this->os << "for each ininin" << std::endl;
 						const auto file_key_hash = 
 							database::FileKeyHash::Parse(byte_array);
-						std::cout << "received!: " << file_key_hash << std::endl;
-						std::cout << "added" << std::endl;
+						this->os << "received!: " << file_key_hash << std::endl;
+						this->os << "added" << std::endl;
 						this->file_key_hash_db.Add(file_key_hash);
 								
 					});
-					std::cout << "FetchPush returned initial sender!" << std::endl;
+					this->os << "FetchPush returned initial sender!" << std::endl;
 					return;
 				}
 				
@@ -650,11 +652,11 @@ public:
 						neuria::command::DispatchCommandWrapper(
 							syncia::command::FileKeyHashCommand::GetFetchPushCommandId(), 
 							file_key_hash_command.Serialize());
-					std::cout << "Connected!" << std::endl;	
+					this->os << "Connected!" << std::endl;	
 					const auto connection = neuria::network::Connection::Create(
 						socket, this->buffer_size
 					);
-					std::cout << "Added!!" << std::endl;
+					this->os << "Added!!" << std::endl;
 					this->connection_pool.Add(connection);
 					this->StartReceive(connection);
 					connection->Send(
@@ -686,7 +688,7 @@ public:
 					const neuria::command::ByteArray& received_byte_array){
 				auto file_key_hash_command = 
 					command::FileKeyHashCommand::Parse(received_byte_array);
-				std::cout << file_key_hash_command << std::endl;
+				this->os << file_key_hash_command << std::endl;
 
 				this->file_key_hash_db.QuoteNewerList(
 					this->spread_max_count, 
@@ -706,15 +708,15 @@ public:
 									command::NodeId(this->node_id.ToString())){
 								temp_file_key_hash_command.ForEach(
 										[this](const neuria::command::ByteArray& byte_array){
-									std::cout << "for each ininin" << std::endl;
+									this->os << "for each ininin" << std::endl;
 									const auto file_key_hash = 
 										database::FileKeyHash::Parse(byte_array);
-									std::cout << "received!: " << file_key_hash << std::endl;
-									std::cout << "added" << std::endl;
+									this->os << "received!: " << file_key_hash << std::endl;
+									this->os << "added" << std::endl;
 									this->file_key_hash_db.Add(file_key_hash);
 											
 								});
-								std::cout << "FetchPull returned initial sender!" << std::endl;
+								this->os << "FetchPull returned initial sender!" << std::endl;
 								return;
 							}
 							const auto on_connected = neuria::network::OnConnectedFunc(
@@ -724,11 +726,11 @@ public:
 									neuria::command::DispatchCommandWrapper(
 										syncia::command::FileKeyHashCommand::GetFetchPushCommandId(), 
 										temp_file_key_hash_command.Serialize());
-								std::cout << "Connected!" << std::endl;	
+								this->os << "Connected!" << std::endl;	
 								const auto connection = neuria::network::Connection::Create(
 									socket, this->buffer_size
 								);
-								std::cout << "Added!!" << std::endl;
+								this->os << "Added!!" << std::endl;
 								this->connection_pool.Add(connection);
 								this->StartReceive(connection);
 								connection->Send(
@@ -779,7 +781,7 @@ public:
 					const neuria::command::ByteArray& received_byte_array){
 				auto file_key_hash_command = 
 					command::FileKeyHashCommand::Parse(received_byte_array);
-				std::cout << file_key_hash_command << std::endl;
+				this->os << file_key_hash_command << std::endl;
 				
 				file_key_hash_command.AddNodeIdOnRoute(
 					command::NodeId(this->node_id.ToString()));
@@ -787,15 +789,15 @@ public:
 						command::NodeId(this->node_id.ToString())){
 					file_key_hash_command.ForEach(
 							[this](const neuria::command::ByteArray& byte_array){
-						std::cout << "for each ininin" << std::endl;
+						this->os << "for each ininin" << std::endl;
 						const auto file_key_hash = 
 							database::FileKeyHash::Parse(byte_array);
-						std::cout << "received!: " << file_key_hash << std::endl;
-						std::cout << "added" << std::endl;
+						this->os << "received!: " << file_key_hash << std::endl;
+						this->os << "added" << std::endl;
 						this->file_key_hash_db.Add(file_key_hash);
 								
 					});
-					std::cout << "FetchPush returned initial sender!" << std::endl;
+					this->os << "FetchPush returned initial sender!" << std::endl;
 					return;
 				}
 				
@@ -805,11 +807,11 @@ public:
 						neuria::command::DispatchCommandWrapper(
 							syncia::command::FileKeyHashCommand::GetFetchPushCommandId(), 
 							file_key_hash_command.Serialize());
-					std::cout << "Connected!" << std::endl;	
+					this->os << "Connected!" << std::endl;	
 					const auto connection = neuria::network::Connection::Create(
 						socket, this->buffer_size
 					);
-					std::cout << "Added!!" << std::endl;
+					this->os << "Added!!" << std::endl;
 					this->connection_pool.Add(connection);
 					this->StartReceive(connection);
 					connection->Send(
@@ -875,7 +877,7 @@ public:
 				boost::bind(&boost::asio::io_service::run, &this->io_service)
 			);
 		}
-		std::cout << boost::format("ServerReady:\"%1%\"") 
+		this->os << boost::format("ServerReady:\"%1%\"") 
 			% this->node_id.ToString()
 		<< std::endl;
 		
@@ -884,7 +886,7 @@ public:
 		neuria::network::Server server(this->io_service, std::get<1>(host_port_tuple),
 			neuria::network::OnAcceptedFunc(
 					[this](neuria::network::Socket::Ptr socket){
-				std::cout << "accepted!" << std::endl;
+				this->os << "accepted!" << std::endl;
 				auto connection = 
 					neuria::network::Connection::Create(socket, buffer_size);
 				this->connection_pool.Add(connection);
@@ -910,6 +912,7 @@ public:
 	}
 
 private:
+	std::ostream& os;
 	boost::asio::io_service& io_service;
 	const database::NodeId node_id;
 	const neuria::network::BufferSize buffer_size;
