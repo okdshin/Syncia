@@ -52,10 +52,21 @@ public:
 			const neuria::network::BufferSize& buffer_size,
 			std::ostream& os, 
 			std::istream& is) 
-		: os(os), is(is), io_service(io_service), 
+		: os(os), is(is), io_service(io_service), work(io_service),
 			node_id(CreateNodeIdFromHostNameAndPortNumber(host_name, port_num)), 
 			buffer_size(buffer_size),
-			cui_shell(os, is), work(io_service),
+			server(io_service, port_num,
+				neuria::network::OnAcceptedFunc(
+						[this](neuria::network::Socket::Ptr socket){
+					this->os << "accepted!" << std::endl;
+					auto connection = 
+						neuria::network::Connection::Create(socket, this->buffer_size);
+					this->connection_pool.Add(connection);
+					this->StartReceive(connection);
+				}),
+				neuria::network::OnFailedFunc()
+			),
+			cui_shell(os, is),
 			command_dispatcher(
 				neuria::command::AsyncExecuter([this](boost::function<void ()> func){
 					this->io_service.post(func);
@@ -63,9 +74,9 @@ public:
 				neuria::command::OnFailedFunc()
 			),
 			client(io_service),
-			connection_pool(this->io_service),
-			file_key_hash_db(this->io_service),
-			download_directory_path(this->io_service, 
+			connection_pool(io_service),
+			file_key_hash_db(io_service),
+			download_directory_path(io_service, 
 					database::FileSystemPath("./download")),
 			max_hop_count(6),
 			spread_max_count(100),
@@ -871,59 +882,37 @@ public:
 		);	
 	}
 
-	auto Run() -> void {
-		boost::thread_group thread_group;
-		for(unsigned int i = 0; i < 5; ++i){
-			thread_group.create_thread(
-				boost::bind(&boost::asio::io_service::run, &this->io_service)
-			);
-		}
-		this->os << boost::format("ServerReady:\"%1%\"") 
-			% this->node_id.ToString()
-		<< std::endl;
-		
-		const auto host_port_tuple = CreateHostNameAndPortNumberFromNodeId(this->node_id); 
+	auto StartAcceptInBackground() -> void {
+		this->io_service.post([this](){
+			this->os << boost::format("ServerReady:\"%1%\"") 
+				% this->node_id.ToString()
+			<< std::endl;
+			this->server.StartAccept();
+		});
+	}
 
-		neuria::network::Server server(this->io_service, std::get<1>(host_port_tuple),
-			neuria::network::OnAcceptedFunc(
-					[this](neuria::network::Socket::Ptr socket){
-				this->os << "accepted!" << std::endl;
-				auto connection = 
-					neuria::network::Connection::Create(socket, buffer_size);
-				this->connection_pool.Add(connection);
-				this->StartReceive(connection);
-			}),
-			neuria::network::OnFailedFunc()
-		);
-		server.StartAccept();
-		/*
-		for(unsigned int i = 0; i < 400; ++i){
-			//this->cui_shell.Call("link localhost 54321");
-			//this->cui_shell.Call("close 0");
-		}
-		*/
-		/*
-		for(unsigned int i = 0; i < 500; ++i){
-			this->cui_shell.Call("echo helllo");
-		}
-		*/
+	auto StartCuiShell() -> void {
 		this->cui_shell.Call("setdd ./download");
-		cui_shell.Start();
-		thread_group.join_all();
+		this->cui_shell.Start();	
+	}
+
+	auto Call(const std::string& command) -> void {
+		this->cui_shell.Call(command);	
 	}
 
 private:
 	std::ostream& os;
 	std::istream& is;
 	boost::asio::io_service& io_service;
+	boost::asio::io_service::work work;
 	const database::NodeId node_id;
 	const neuria::network::BufferSize buffer_size;
+	neuria::network::Server server;
 	neuria::test::CuiShell cui_shell;
-	boost::asio::io_service::work work;
 	neuria::command::CommandDispatcher command_dispatcher;
 	neuria::network::Client client;
-	neuria::network::ConnectionPool connection_pool;//<-thread safe ;)
-	database::FileKeyHashDb file_key_hash_db;//todo need strand!!!!
+	neuria::network::ConnectionPool connection_pool;//<-thread safe :)
+	database::FileKeyHashDb file_key_hash_db;//<- thread safe too ;)
 	neuria::thread_safe::ThreadSafeVariable<database::FileSystemPath> 
 		download_directory_path;
 	const command::HopCount max_hop_count;

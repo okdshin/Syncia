@@ -24,7 +24,15 @@ int main(int argc, char* argv[])
 	cui_syncia.InitShell();
 	cui_syncia.InitDispatcher();
 	cui_syncia.InitTimer();
-	cui_syncia.Run();
+	boost::thread_group thread_group;
+	for(unsigned int i = 0; i < 5; ++i){
+		thread_group.create_thread(
+			boost::bind(&boost::asio::io_service::run, &io_service)
+		);
+	}
+	cui_syncia.StartAcceptInBackground();
+	cui_syncia.StartCuiShell();
+	thread_group.join_all();
 
     return 0;
 }
