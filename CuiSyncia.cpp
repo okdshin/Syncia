@@ -18,7 +18,9 @@ int main(int argc, char* argv[])
 	CuiSyncia cui_syncia(
 		io_service,
 		host_name, port_number,
-		neuria::network::BufferSize(256));
+		neuria::network::BufferSize(256),
+		std::cout,
+		std::cin);
 	cui_syncia.InitShell();
 	cui_syncia.InitDispatcher();
 	cui_syncia.InitTimer();

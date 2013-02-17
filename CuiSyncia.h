@@ -50,11 +50,12 @@ public:
 			const neuria::network::HostName& host_name, 
 			const neuria::network::PortNumber& port_num,
 			const neuria::network::BufferSize& buffer_size,
-			std::ostream& os=std::cout) 
-		: os(os), io_service(io_service), 
+			std::ostream& os, 
+			std::istream& is) 
+		: os(os), is(is), io_service(io_service), 
 			node_id(CreateNodeIdFromHostNameAndPortNumber(host_name, port_num)), 
 			buffer_size(buffer_size),
-			cui_shell(os), work(io_service),
+			cui_shell(os, is), work(io_service),
 			command_dispatcher(
 				neuria::command::AsyncExecuter([this](boost::function<void ()> func){
 					this->io_service.post(func);
@@ -913,6 +914,7 @@ public:
 
 private:
 	std::ostream& os;
+	std::istream& is;
 	boost::asio::io_service& io_service;
 	const database::NodeId node_id;
 	const neuria::network::BufferSize buffer_size;
