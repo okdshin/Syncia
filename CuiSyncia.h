@@ -50,6 +50,7 @@ public:
 			const neuria::network::HostName& host_name, 
 			const neuria::network::PortNumber& port_num,
 			const neuria::network::BufferSize& buffer_size,
+			const database::FileSystemPath& download_directory_path,
 			std::ostream& os, 
 			std::istream& is) 
 		: os(os), is(is), io_service(io_service), work(io_service),
@@ -76,8 +77,7 @@ public:
 			client(io_service),
 			connection_pool(io_service),
 			file_key_hash_db(io_service),
-			download_directory_path(io_service, 
-					database::FileSystemPath("./download")),
+			download_directory_path(io_service, download_directory_path),
 			max_hop_count(6),
 			spread_max_count(100),
 			multiple_timer(io_service),

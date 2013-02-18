@@ -19,6 +19,7 @@ int main(int argc, char* argv[])
 		io_service,
 		host_name, port_number,
 		neuria::network::BufferSize(256),
+		database::FileSystemPath("./download"),
 		std::cout,
 		std::cin);
 	cui_syncia.InitShell();
