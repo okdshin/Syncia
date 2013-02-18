@@ -143,12 +143,12 @@ private:
 
 public:
 	auto InitShell() -> void {
-		neuria::test::RegisterExitFunc(this->cui_shell, "bye :)");		
+		neuria::shell::RegisterExitFunc(this->cui_shell, "bye :)");		
 
 		this->cui_shell.Register("setdd", 
 			"<directory_name> set download directory path.", 
-			neuria::test::ShellFunc(
-					[this](const neuria::test::CuiShell::ArgList& arg_list){
+			neuria::shell::ShellFunc(
+					[this](const neuria::shell::CuiShell::ArgList& arg_list){
 				std::ifstream ifs(arg_list.at(1));
 				if(!ifs){
 					this->os << "directory not found" <<std::endl;
@@ -161,8 +161,8 @@ public:
 		
 		this->cui_shell.Register("getdd", 
 			"get download directory path.", 
-			neuria::test::ShellFunc(
-					[this](const neuria::test::CuiShell::ArgList& arg_list){
+			neuria::shell::ShellFunc(
+					[this](const neuria::shell::CuiShell::ArgList& arg_list){
 				this->download_directory_path.Quote(
 						[this](
 							const database::FileSystemPath& download_directory_path){
@@ -172,8 +172,8 @@ public:
 		);
 
 		this->cui_shell.Register("upload", "<file_name> add file to upload list.", 
-			neuria::test::ShellFunc(
-					[this](const neuria::test::CuiShell::ArgList& arg_list){
+			neuria::shell::ShellFunc(
+					[this](const neuria::shell::CuiShell::ArgList& arg_list){
 				std::ifstream ifs(arg_list.at(1));
 				if(!ifs){
 					this->os << "file not found" <<std::endl;
@@ -188,16 +188,16 @@ public:
 		);
 
 		this->cui_shell.Register("db", "show upload db.", 
-			neuria::test::ShellFunc(
-					[this](const neuria::test::CuiShell::ArgList& arg_list){
+			neuria::shell::ShellFunc(
+					[this](const neuria::shell::CuiShell::ArgList& arg_list){
 				this->os << this->file_key_hash_db << std::endl;
 			})
 		);
 		
 
 		this->cui_shell.Register("link", "<host_name> <port_num> create link.", 
-			neuria::test::ShellFunc(
-					[this](const neuria::test::CuiShell::ArgList& arg_list){
+			neuria::shell::ShellFunc(
+					[this](const neuria::shell::CuiShell::ArgList& arg_list){
 				this->CreateLink(
 					neuria::network::HostName(arg_list.at(1)),
 					neuria::network::PortNumber(
@@ -207,15 +207,15 @@ public:
 		);
 		
 		this->cui_shell.Register("pool", "show connection pool",
-			neuria::test::ShellFunc(
-					[this](const neuria::test::CuiShell::ArgList& arg_list){
+			neuria::shell::ShellFunc(
+					[this](const neuria::shell::CuiShell::ArgList& arg_list){
 				this->os << this->connection_pool << std::endl;	
 			})
 		);
 
 		this->cui_shell.Register("close", "<host_name> <port_number> close connection",
-			neuria::test::ShellFunc(
-					[this](const neuria::test::CuiShell::ArgList& arg_list){
+			neuria::shell::ShellFunc(
+					[this](const neuria::shell::CuiShell::ArgList& arg_list){
 				this->connection_pool.PickUpAndQuote(
 					[arg_list](const neuria::network::Connection::Ptr& connection) -> bool{
 						return connection->GetRemoteHostName() == 
@@ -234,8 +234,8 @@ public:
 		);
 		
 		this->cui_shell.Register("echo", "<text> request echo text",
-			neuria::test::ShellFunc(
-					[this](const neuria::test::CuiShell::ArgList& arg_list){
+			neuria::shell::ShellFunc(
+					[this](const neuria::shell::CuiShell::ArgList& arg_list){
 				auto wrapper = neuria::command::DispatchCommandWrapper(
 					command::EchoCommand::GetRequestCommandId(), 
 					command::EchoCommand(arg_list.at(1)).Serialize()
@@ -252,8 +252,8 @@ public:
 		);
 		
 		this->cui_shell.Register("bigecho", "<byte_size> request echo big generated text",
-			neuria::test::ShellFunc(
-					[this](const neuria::test::CuiShell::ArgList& arg_list){
+			neuria::shell::ShellFunc(
+					[this](const neuria::shell::CuiShell::ArgList& arg_list){
 				const neuria::command::ByteArray big_byte_array(
 					boost::lexical_cast<unsigned int>(arg_list.at(1)), 'a');
 				auto wrapper = neuria::command::DispatchCommandWrapper(
@@ -274,8 +274,8 @@ public:
 		);
 		
 		this->cui_shell.Register("pull", "<index> send pull request",
-			neuria::test::ShellFunc(
-					[this](const neuria::test::CuiShell::ArgList& arg_list){
+			neuria::shell::ShellFunc(
+					[this](const neuria::shell::CuiShell::ArgList& arg_list){
 				const auto file_key_hash_index = 
 					boost::lexical_cast<unsigned int>(arg_list.at(1));
 				this->file_key_hash_db.QuoteByIndex(file_key_hash_index,
@@ -321,8 +321,8 @@ public:
 		/*
 		this->cui_shell.Register("mpull", 
 			"<host_name> <port_num> <hash_id> <save_file_path> send pull request",
-			neuria::test::ShellFunc(
-					[this](const neuria::test::CuiShell::ArgList& arg_list){
+			neuria::shell::ShellFunc(
+					[this](const neuria::shell::CuiShell::ArgList& arg_list){
 				const auto file_command = 
 					command::FileCommand(database::HashId(arg_list.at(3)).Serialize());
 				this->os << file_command << std::endl;
@@ -356,8 +356,8 @@ public:
 		);
 		*/
 		this->cui_shell.Register("search", "[<keyword>] search file key hash",
-			neuria::test::ShellFunc(
-					[this](const neuria::test::CuiShell::ArgList& arg_list){
+			neuria::shell::ShellFunc(
+					[this](const neuria::shell::CuiShell::ArgList& arg_list){
 				std::string keyword_str;
 				for(unsigned int i = 1; i < arg_list.size(); ++i){
 					keyword_str = keyword_str + arg_list.at(i) + " ";
@@ -384,8 +384,8 @@ public:
 		);
 		
 		this->cui_shell.Register("spread", "spread file key hash",
-			neuria::test::ShellFunc(
-					[this](const neuria::test::CuiShell::ArgList& arg_list){
+			neuria::shell::ShellFunc(
+					[this](const neuria::shell::CuiShell::ArgList& arg_list){
 				const auto file_key_hash_command = 
 					command::FileKeyHashCommand(
 						command::NodeId(this->node_id.ToString()));
@@ -408,8 +408,8 @@ public:
 
 		this->cui_shell.Register("check", 
 				"<directory_path> check directory change",
-			neuria::test::ShellFunc(
-					[this](const neuria::test::CuiShell::ArgList& arg_list){
+			neuria::shell::ShellFunc(
+					[this](const neuria::shell::CuiShell::ArgList& arg_list){
 				auto directory_path = database::FileSystemPath(arg_list.at(1));
 				if(!boost::filesystem::is_directory(directory_path)){
 					this->os << directory_path << " is not directory." << std::endl;
@@ -429,8 +429,8 @@ public:
 		
 		this->cui_shell.Register("rmold", 
 				"remove old file key hash.",
-			neuria::test::ShellFunc(
-					[this](const neuria::test::CuiShell::ArgList& arg_list){
+			neuria::shell::ShellFunc(
+					[this](const neuria::shell::CuiShell::ArgList& arg_list){
 				this->file_key_hash_db.Remove(
 						[this](const database::FileKeyHash& file_key_hash) -> bool {
 					return file_key_hash.GetLastCheckedTime() 
@@ -908,7 +908,7 @@ private:
 	const database::NodeId node_id;
 	const neuria::network::BufferSize buffer_size;
 	neuria::network::Server server;
-	neuria::test::CuiShell cui_shell;
+	neuria::shell::CuiShell cui_shell;
 	neuria::command::CommandDispatcher command_dispatcher;
 	neuria::network::Client client;
 	neuria::network::ConnectionPool connection_pool;//<-thread safe :)
