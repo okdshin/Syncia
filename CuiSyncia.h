@@ -109,6 +109,7 @@ private:
 		
 	}
 
+
 	auto StartReceive(const neuria::network::Connection::Ptr& connection) -> void {
 		connection->StartReceive(
 			neuria::network::OnReceivedFunc([this, connection](
