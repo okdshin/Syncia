@@ -127,7 +127,7 @@ private:
 	FileKeyHashListQuoter quoter;
 };
 
-auto CreateBasicFileKeyHashDb(boost::asio::io_service& io_service) -> FileKeyHashDb::Ptr {
+inline auto CreateBasicFileKeyHashDb(boost::asio::io_service& io_service) -> FileKeyHashDb::Ptr {
 	auto file_key_hash_list = 
 		boost::shared_ptr<FileKeyHashList>(new FileKeyHashList());
 	
