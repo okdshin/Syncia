@@ -19,11 +19,11 @@ public:
     FileKeyHashAdder(FuncType adder)
 		: adder(adder){}
 
-	auto operator()(const FileKeyHash& file_key_hash) -> void {
+	auto operator()(const FileKeyHash& file_key_hash)const -> void {
 		adder(file_key_hash);	
 	}
 private:
-	FuncType adder;
+	const FuncType adder;
 };
 }
 }

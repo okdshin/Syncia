@@ -127,14 +127,14 @@ private:
 	FileKeyHashListQuoter quoter;
 };
 
-inline auto CreateBasicFileKeyHashDb(boost::asio::io_service& io_service, 
+inline auto CreateFileKeyHashDbWithBasic(boost::asio::io_service& io_service, 
 		const FileKeyHashAdder& arg_adder,
 		const FileKeyHashRemover& arg_remover) -> FileKeyHashDb::Ptr {
 	auto file_key_hash_list = 
 		boost::shared_ptr<FileKeyHashList>(new FileKeyHashList());
 	
 	const auto adder = 
-		FileKeyHashAdder([file_key_hash_list](const FileKeyHash& file_key_hash){
+		FileKeyHashAdder([file_key_hash_list, arg_adder](const FileKeyHash& file_key_hash){
 			/*
 			const auto iter = 
 				find_if(file_key_hash_list->begin(), file_key_hash_list->end(),
@@ -153,14 +153,14 @@ inline auto CreateBasicFileKeyHashDb(boost::asio::io_service& io_service,
 
 	const auto remover = 
 		FileKeyHashRemover(
-				[file_key_hash_list](boost::function<bool (const FileKeyHash&)> decider){
+				[file_key_hash_list, arg_remover](boost::function<bool (const FileKeyHash&)> decider){
 			const auto end = 
 				std::remove_if(
 					file_key_hash_list->begin(), 
 					file_key_hash_list->end(),
 					decider);
 			file_key_hash_list->erase(end, file_key_hash_list->end());
-			remover(decider);
+			arg_remover(decider);
 		});
 	
 	const auto quoter = 
@@ -172,42 +172,12 @@ inline auto CreateBasicFileKeyHashDb(boost::asio::io_service& io_service,
 }
 
 inline auto CreateBasicFileKeyHashDb(boost::asio::io_service& io_service) -> FileKeyHashDb::Ptr {
-	auto file_key_hash_list = 
-		boost::shared_ptr<FileKeyHashList>(new FileKeyHashList());
-	
-	const auto adder = 
-		FileKeyHashAdder([file_key_hash_list](const FileKeyHash& file_key_hash){
-			const auto iter = 
-				find_if(file_key_hash_list->begin(), file_key_hash_list->end(),
-					[&file_key_hash](const FileKeyHash& e){	
-						return e.GetHashId() == file_key_hash.GetHashId() 
-						&& e.GetOwnerId() == file_key_hash.GetOwnerId();
-					}
-				);
-			if(iter != file_key_hash_list->end()){
-				file_key_hash_list->erase(iter);
-			}
-			file_key_hash_list->push_back(file_key_hash);
-		});
+	return CreateFileKeyHashDbWithBasic(
+		io_service, FileKeyHashAdder(), 
+		FileKeyHashRemover());
 
-	const auto remover = 
-		FileKeyHashRemover(
-				[file_key_hash_list](boost::function<bool (const FileKeyHash&)> decider){
-			const auto end = 
-				std::remove_if(
-					file_key_hash_list->begin(), 
-					file_key_hash_list->end(),
-					decider);
-			file_key_hash_list->erase(end, file_key_hash_list->end());
-		});
-	
-	const auto quoter = 
-		FileKeyHashListQuoter([file_key_hash_list](
-				boost::function<void (const FileKeyHashList&)> receiver){
-			receiver(*file_key_hash_list);	
-		});
-	return FileKeyHashDb::Create(io_service, adder, remover, quoter);	
 }
+
 inline auto operator<<(std::ostream& os, 
 		const FileKeyHashDb& file_key_hash_db) -> std::ostream& {
 	file_key_hash_db.quoter([&file_key_hash_db, &os](const FileKeyHashList& file_key_hash_list){

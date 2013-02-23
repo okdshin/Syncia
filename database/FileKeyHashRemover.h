@@ -20,11 +20,11 @@ public:
     FileKeyHashRemover(FuncType remover)
 		: remover(remover){}
 
-	auto operator()(Decider decider) -> void {
+	auto operator()(Decider decider)const -> void {
 		remover(decider);
 	}
 private:
-	FuncType remover;
+	const FuncType remover;
 };
 }
 }
