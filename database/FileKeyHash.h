@@ -151,5 +151,15 @@ inline auto IsSameHashId(const FileKeyHash& left, const FileKeyHash& right) -> b
 	return left.GetHashId() == right.GetHashId();	
 }
 
+using FileKeyHashList = std::vector<FileKeyHash>;
+inline auto operator<<(std::ostream& os, 
+		const FileKeyHashList& key_hash_list) -> std::ostream& {
+	for(const auto& key_hash : key_hash_list){
+		os << key_hash << "\n";
+	}
+	return os;
+}
+
+
 }
 }
