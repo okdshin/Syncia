@@ -12,6 +12,9 @@
 #include "command/HopCount.h"
 #include "database/FileKeyHashDb.h"
 #include "database/FileSystemPath.h"
+#include "SearchFileKeyHashDb.h"
+#include "SpreadFileKeyHashDb.h"
+
 namespace syncia
 {
 inline auto CreateNodeIdFromHostNameAndPortNumber(
@@ -51,7 +54,8 @@ public:
 			const neuria::network::PortNumber& port_num,
 			const neuria::network::BufferSize& buffer_size,
 			const database::FileSystemPath& download_directory_path,
-			const database::FileKeyHashDb::Ptr& file_key_hash_db,
+			const SearchFileKeyHashDb& search_file_key_hash_db,
+			const SpreadFileKeyHashDb& spread_file_key_hash_db,
 			std::ostream& os, 
 			std::istream& is) 
 		: os(os), is(is), io_service(io_service), work(io_service),
@@ -77,7 +81,8 @@ public:
 			),
 			client(io_service),
 			connection_pool(io_service),
-			file_key_hash_db(file_key_hash_db),
+			search_file_key_hash_db(search_file_key_hash_db()),
+			spread_file_key_hash_db(spread_file_key_hash_db()),
 			download_directory_path(io_service, download_directory_path),
 			max_hop_count(6),
 			spread_max_count(100),
@@ -181,7 +186,7 @@ public:
 					this->os << "file not found" <<std::endl;
 					return;
 				}
-				this->file_key_hash_db->Add(
+				this->spread_file_key_hash_db->Add(
 					database::FileKeyHash(
 						this->node_id, 
 						database::FileSystemPath(arg_list.at(1)))
@@ -189,10 +194,17 @@ public:
 			})
 		);
 
-		this->cui_shell.Register("db", "show upload db.", 
+		this->cui_shell.Register("db", "show found file key has list.", 
 			neuria::shell::ShellFunc(
 					[this](const neuria::shell::CuiShell::ArgList& arg_list){
-				this->os << *(this->file_key_hash_db) << std::endl;
+				this->os << *(this->search_file_key_hash_db) << std::endl;
+			})
+		);
+		
+		this->cui_shell.Register("spdb", "show upload db.", 
+			neuria::shell::ShellFunc(
+					[this](const neuria::shell::CuiShell::ArgList& arg_list){
+				this->os << *(this->spread_file_key_hash_db) << std::endl;
 			})
 		);
 		
@@ -280,7 +292,7 @@ public:
 			neuria::shell::ShellFunc(
 					[this](const neuria::shell::CuiShell::ArgList& arg_list){
 				const auto hash_id = database::HashId(arg_list.at(1));
-				this->file_key_hash_db->QuoteByHashId(hash_id,
+				this->search_file_key_hash_db->QuoteByHashId(hash_id,
 					[this](const database::FileKeyHashList& file_key_hash_list){	
 						const auto file_key_hash = file_key_hash_list.front();
 						const auto file_command = 
@@ -435,7 +447,14 @@ public:
 				"remove old file key hash.",
 			neuria::shell::ShellFunc(
 					[this](const neuria::shell::CuiShell::ArgList& arg_list){
-				this->file_key_hash_db->Remove(
+				this->search_file_key_hash_db->Remove(
+						[this](const database::FileKeyHash& file_key_hash) -> bool {
+					return file_key_hash.GetLastCheckedTime() 
+							+ boost::posix_time::seconds(
+								this->check_upload_directory_interval * 2)
+						< boost::posix_time::second_clock::universal_time();
+				});
+				this->spread_file_key_hash_db->Remove(
 						[this](const database::FileKeyHash& file_key_hash) -> bool {
 					return file_key_hash.GetLastCheckedTime() 
 							+ boost::posix_time::seconds(
@@ -497,7 +516,7 @@ public:
 					% file_key_hash
 				<< std::endl;
 				
-				this->file_key_hash_db->QuoteByHashId(file_key_hash.GetHashId(), 
+				this->spread_file_key_hash_db->QuoteByHashId(file_key_hash.GetHashId(), 
 					[this, file_command, sender](const database::FileKeyHashList& file_key_hash_list){
 						const auto file_key_hash = file_key_hash_list.front();
 						auto temp_file_command = file_command;
@@ -554,7 +573,7 @@ public:
 				this->os << file_key_hash_command << std::endl;
 
 				const auto keyword = file_key_hash_command.GetKeyword();
-				this->file_key_hash_db->QuoteSearch(
+				this->spread_file_key_hash_db->QuoteSearch(
 					database::Keyword(keyword.ToString()), 
 					[this, file_key_hash_command](
 							const database::FileKeyHashList& found_file_key_hash_list){
@@ -575,7 +594,8 @@ public:
 									const auto file_key_hash = 
 										database::FileKeyHash::Parse(byte_array);
 									this->os << "received!: " << file_key_hash << std::endl;
-									this->file_key_hash_db->Add(file_key_hash);
+									this->spread_file_key_hash_db->Add(file_key_hash);
+									//this->search_file_key_hash_db->Add(file_key_hash);
 											
 								});
 								this->os << "FetchPull returned initial sender!" << std::endl;
@@ -656,7 +676,8 @@ public:
 							database::FileKeyHash::Parse(byte_array);
 						this->os << "received!: " << file_key_hash << std::endl;
 						this->os << "added" << std::endl;
-						this->file_key_hash_db->Add(file_key_hash);
+						this->spread_file_key_hash_db->Add(file_key_hash);
+						//this->search_file_key_hash_db->Add(file_key_hash);
 								
 					});
 					this->os << "FetchPush returned initial sender!" << std::endl;
@@ -707,7 +728,7 @@ public:
 					command::FileKeyHashCommand::Parse(received_byte_array);
 				this->os << file_key_hash_command << std::endl;
 
-				this->file_key_hash_db->QuoteNewerList(
+				this->spread_file_key_hash_db->QuoteNewerList(
 					this->spread_max_count, 
 					[this, file_key_hash_command](
 							const database::FileKeyHashList& found_file_key_hash_list){
@@ -730,7 +751,7 @@ public:
 										database::FileKeyHash::Parse(byte_array);
 									this->os << "received!: " << file_key_hash << std::endl;
 									this->os << "added" << std::endl;
-									this->file_key_hash_db->Add(file_key_hash);
+									this->spread_file_key_hash_db->Add(file_key_hash);
 											
 								});
 								this->os << "FetchPull returned initial sender!" << std::endl;
@@ -811,7 +832,7 @@ public:
 							database::FileKeyHash::Parse(byte_array);
 						this->os << "received!: " << file_key_hash << std::endl;
 						this->os << "added" << std::endl;
-						this->file_key_hash_db->Add(file_key_hash);
+						this->spread_file_key_hash_db->Add(file_key_hash);
 								
 					});
 					this->os << "FetchPush returned initial sender!" << std::endl;
@@ -917,7 +938,8 @@ private:
 	neuria::command::CommandDispatcher command_dispatcher;
 	neuria::network::Client client;
 	neuria::network::ConnectionPool connection_pool;//<-thread safe :)
-	database::FileKeyHashDb::Ptr file_key_hash_db;//<- thread safe too ;)
+	database::FileKeyHashDb::Ptr search_file_key_hash_db;//<- thread safe too ;)
+	database::FileKeyHashDb::Ptr spread_file_key_hash_db;//<- thread safe too ;)
 	neuria::thread_safe::ThreadSafeVariable<database::FileSystemPath> 
 		download_directory_path;
 	const command::HopCount max_hop_count;

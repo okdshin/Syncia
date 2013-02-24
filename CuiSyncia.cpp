@@ -15,14 +15,17 @@ int main(int argc, char* argv[])
 		port_number = (boost::lexical_cast<int>(argv[2]));
 	}
 	boost::asio::io_service io_service;
-	const auto file_key_hash_db = 
-		database::CreateBasicFileKeyHashDb(io_service);
+	const auto search_file_key_hash_db = 
+		database::CreateStandardFileKeyHashDb(io_service);
+	const auto spread_file_key_hash_db = 
+		database::CreateStandardFileKeyHashDb(io_service);
 	CuiSyncia cui_syncia(
 		io_service,
 		host_name, port_number,
 		neuria::network::BufferSize(256),
 		database::FileSystemPath("./download"),
-		file_key_hash_db,
+		search_file_key_hash_db,
+		spread_file_key_hash_db,
 		std::cout,
 		std::cin);
 	cui_syncia.InitShell();
