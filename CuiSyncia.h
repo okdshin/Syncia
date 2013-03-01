@@ -294,6 +294,10 @@ public:
 				const auto hash_id = database::HashId(arg_list.at(1));
 				this->search_file_key_hash_db->QuoteByHashId(hash_id,
 					[this](const database::FileKeyHashList& file_key_hash_list){	
+						if(file_key_hash_list.empty()){
+							this->os << "(pull)hash id not found." << std::endl;
+							return;
+						}
 						const auto file_key_hash = file_key_hash_list.front();
 						const auto file_command = 
 							command::FileCommand(file_key_hash.Serialize());
@@ -447,6 +451,7 @@ public:
 				"remove old file key hash.",
 			neuria::shell::ShellFunc(
 					[this](const neuria::shell::CuiShell::ArgList& arg_list){
+				/*
 				this->search_file_key_hash_db->Remove(
 						[this](const database::FileKeyHash& file_key_hash) -> bool {
 					return file_key_hash.GetLastCheckedTime() 
@@ -454,6 +459,7 @@ public:
 								this->check_upload_directory_interval * 2)
 						< boost::posix_time::second_clock::universal_time();
 				});
+				*/
 				this->spread_file_key_hash_db->Remove(
 						[this](const database::FileKeyHash& file_key_hash) -> bool {
 					return file_key_hash.GetLastCheckedTime() 
@@ -595,7 +601,7 @@ public:
 										database::FileKeyHash::Parse(byte_array);
 									this->os << "received!: " << file_key_hash << std::endl;
 									this->spread_file_key_hash_db->Add(file_key_hash);
-									//this->search_file_key_hash_db->Add(file_key_hash);
+									this->search_file_key_hash_db->Add(file_key_hash);
 											
 								});
 								this->os << "FetchPull returned initial sender!" << std::endl;
@@ -677,7 +683,7 @@ public:
 						this->os << "received!: " << file_key_hash << std::endl;
 						this->os << "added" << std::endl;
 						this->spread_file_key_hash_db->Add(file_key_hash);
-						//this->search_file_key_hash_db->Add(file_key_hash);
+						this->search_file_key_hash_db->Add(file_key_hash);
 								
 					});
 					this->os << "FetchPush returned initial sender!" << std::endl;
@@ -762,7 +768,7 @@ public:
 										neuria::network::Socket::Ptr socket){
 								const auto fetch_push_wrapper = 
 									neuria::command::DispatchCommandWrapper(
-										syncia::command::FileKeyHashCommand::GetFetchPushCommandId(), 
+										syncia::command::FileKeyHashCommand::GetSpreadPushCommandId(), 
 										temp_file_key_hash_command.Serialize());
 								this->os << "Connected!" << std::endl;	
 								const auto connection = neuria::network::Connection::Create(
@@ -792,7 +798,7 @@ public:
 						}
 						
 						const auto fetch_pull_wrapper = neuria::command::DispatchCommandWrapper(
-							syncia::command::FileKeyHashCommand::GetFetchPullCommandId(), 
+							syncia::command::FileKeyHashCommand::GetSpreadPullCommandId(), 
 							temp_file_key_hash_command.Serialize()
 						);
 						this->connection_pool.QuoteRandomConnection([fetch_pull_wrapper](
@@ -835,7 +841,7 @@ public:
 						this->spread_file_key_hash_db->Add(file_key_hash);
 								
 					});
-					this->os << "FetchPush returned initial sender!" << std::endl;
+					this->os << "SpreadPush returned initial sender!" << std::endl;
 					return;
 				}
 				
@@ -843,7 +849,7 @@ public:
 						[this, file_key_hash_command](neuria::network::Socket::Ptr socket){
 					const auto fetch_push_wrapper = 
 						neuria::command::DispatchCommandWrapper(
-							syncia::command::FileKeyHashCommand::GetFetchPushCommandId(), 
+							syncia::command::FileKeyHashCommand::GetSpreadPushCommandId(), 
 							file_key_hash_command.Serialize());
 					this->os << "Connected!" << std::endl;	
 					const auto connection = neuria::network::Connection::Create(
