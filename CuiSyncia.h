@@ -14,6 +14,7 @@
 #include "database/FileSystemPath.h"
 #include "SearchFileKeyHashDb.h"
 #include "SpreadFileKeyHashDb.h"
+#include "config/Config.h"
 
 namespace syncia
 {
@@ -54,6 +55,7 @@ public:
 			const neuria::network::PortNumber& port_num,
 			const neuria::network::BufferSize& buffer_size,
 			const database::FileSystemPath& download_directory_path,
+			//const config::LinkDb::Ptr link_db,
 			const SearchFileKeyHashDb& search_file_key_hash_db,
 			const SpreadFileKeyHashDb& spread_file_key_hash_db,
 			std::ostream& front_os, 
@@ -82,6 +84,7 @@ public:
 			),
 			client(io_service),
 			connection_pool(io_service),
+			//link_db(link_db),
 			search_file_key_hash_db(search_file_key_hash_db()),
 			spread_file_key_hash_db(spread_file_key_hash_db()),
 			download_directory_path(io_service, download_directory_path),
@@ -100,13 +103,18 @@ private:
 			% host_name% port_number
 		<< std::endl;
 		auto on_connected = neuria::network::OnConnectedFunc(
-				[this](neuria::network::Socket::Ptr socket){
+				[this, host_name, port_number](neuria::network::Socket::Ptr socket){
 			this->log_os << "Connected!" << std::endl;	
 			const auto connection = neuria::network::Connection::Create(
 				socket, this->buffer_size
 			);
 			this->log_os << "Added!!" << std::endl;
 			this->connection_pool.Add(connection);
+			/*
+			this->link_db->Add(config::NodeId(
+				CreateNodeIdFromHostNameAndPortNumber(
+					host_name, port_number).ToString()));
+			*/
 			this->StartReceive(connection);
 		}); 
 		this->client.Connect(host_name, port_number, 
@@ -237,9 +245,10 @@ public:
 							neuria::network::PortNumber(arg_list.at(2));
 							
 					},
-					[](const neuria::network::ConnectionList& connection_list){
+					[this](const neuria::network::ConnectionList& connection_list){
 						for(const auto& connection : connection_list){
 							connection->Close();
+							//todo this->link_db->Remove();
 						}
 					}
 				);
@@ -959,6 +968,7 @@ private:
 	neuria::command::CommandDispatcher command_dispatcher;
 	neuria::network::Client client;
 	neuria::network::ConnectionPool connection_pool;//<-thread safe :)
+	//config::LinkDb::Ptr link_db;//<- thread safe too ;)
 	database::FileKeyHashDb::Ptr search_file_key_hash_db;//<- thread safe too ;)
 	database::FileKeyHashDb::Ptr spread_file_key_hash_db;//<- thread safe too ;)
 	neuria::thread_safe::ThreadSafeVariable<database::FileSystemPath> 

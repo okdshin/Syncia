@@ -15,6 +15,10 @@ int main(int argc, char* argv[])
 		port_number = (boost::lexical_cast<int>(argv[2]));
 	}
 	boost::asio::io_service io_service;
+	/*
+	const auto link_db =
+		config::CreateBasicLinkDb(io_service);
+	*/
 	const auto search_file_key_hash_db = 
 		database::CreateStandardFileKeyHashDb(io_service);
 	const auto spread_file_key_hash_db = 
@@ -24,6 +28,7 @@ int main(int argc, char* argv[])
 		host_name, port_number,
 		neuria::network::BufferSize(256),
 		database::FileSystemPath("./download"),
+		//link_db,
 		search_file_key_hash_db,
 		spread_file_key_hash_db,
 		std::cout,
