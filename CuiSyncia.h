@@ -555,7 +555,12 @@ public:
 				this->download_directory_path.Quote([this, file_key_hash, file_command, closer](
 						const database::FileSystemPath& download_directory_path){
 					this->log_os << "quote called." << std::endl;
-					const auto file_path = file_key_hash.GetFilePath();
+					const auto file_path = 
+						database::NormalizeAndExtractRooterPath(file_key_hash.GetFilePath());
+					/*
+					if(file_path.){
+						
+					}
 
 					//check file path
 					const bool has_dangerous_dotdot = 
@@ -564,7 +569,7 @@ public:
 						std::cout << "invalid file path" << std::endl;
 						return;
 					}
-
+					*/
 					database::CreateNecessaryDirectory(
 						download_directory_path / file_path);
 					database::ParseFile(
