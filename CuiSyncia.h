@@ -557,6 +557,7 @@ public:
 					this->log_os << "quote called." << std::endl;
 					const auto file_path = 
 						database::NormalizeAndExtractRooterPath(file_key_hash.GetFilePath());
+					this->log_os << "file_path:" << file_path << std::endl;
 					/*
 					if(file_path.){
 						
