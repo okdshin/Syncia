@@ -27,6 +27,7 @@ int main(int argc, char* argv[])
 		search_file_key_hash_db,
 		spread_file_key_hash_db,
 		std::cout,
+		std::cout,
 		std::cin);
 	cui_syncia.InitShell();
 	cui_syncia.InitDispatcher();
