@@ -19,6 +19,10 @@ int main(int argc, char* argv[])
 	const auto link_db =
 		config::CreateBasicLinkDb(io_service);
 	*/
+	const auto connection_pool = 
+		neuria::network::ConnectionPool::Create(io_service, 
+			neuria::network::OnConnectionAdded(),
+			neuria::network::OnConnectionRemoved());
 	const auto search_file_key_hash_db = 
 		database::CreateStandardFileKeyHashDb(io_service);
 	const auto spread_file_key_hash_db = 
@@ -29,6 +33,7 @@ int main(int argc, char* argv[])
 		neuria::network::BufferSize(256),
 		database::FileSystemPath("./download"),
 		//link_db,
+		connection_pool,
 		search_file_key_hash_db,
 		spread_file_key_hash_db,
 		std::cout,

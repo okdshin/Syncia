@@ -56,6 +56,7 @@ public:
 			const neuria::network::BufferSize& buffer_size,
 			const database::FileSystemPath& download_directory_path,
 			//const config::LinkDb::Ptr link_db,
+			const neuria::network::ConnectionPool::Ptr& connection_pool,
 			const SearchFileKeyHashDb& search_file_key_hash_db,
 			const SpreadFileKeyHashDb& spread_file_key_hash_db,
 			std::ostream& front_os, 
@@ -70,7 +71,7 @@ public:
 					this->log_os << "accepted!" << std::endl;
 					auto connection = 
 						neuria::network::Connection::Create(socket, this->buffer_size);
-					this->connection_pool.Add(connection);
+					this->connection_pool->Add(connection);
 					this->StartReceive(connection);
 				}),
 				neuria::network::OnFailedFunc()
@@ -83,8 +84,8 @@ public:
 				neuria::command::OnFailedFunc()
 			),
 			client(io_service),
-			connection_pool(io_service),
 			//link_db(link_db),
+			connection_pool(connection_pool),
 			search_file_key_hash_db(search_file_key_hash_db()),
 			spread_file_key_hash_db(spread_file_key_hash_db()),
 			download_directory_path(io_service, download_directory_path),
@@ -109,7 +110,7 @@ private:
 				socket, this->buffer_size
 			);
 			this->log_os << "Added!!" << std::endl;
-			this->connection_pool.Add(connection);
+			this->connection_pool->Add(connection);
 			/*
 			this->link_db->Add(config::NodeId(
 				CreateNodeIdFromHostNameAndPortNumber(
@@ -149,7 +150,7 @@ private:
 			neuria::network::Connection::OnPeerClosedFunc(
 					[this](const neuria::network::Connection::Ptr& connection){
 				this->log_os << "peer closed" << std::endl;
-				this->connection_pool.Remove(connection);
+				this->connection_pool->Remove(connection);
 			}),
 			neuria::network::OnFailedFunc()	
 		);	
@@ -230,14 +231,14 @@ public:
 		this->cui_shell.Register("pool", "show connection pool",
 			neuria::shell::ShellFunc(
 					[this](const neuria::shell::CuiShell::ArgList& arg_list){
-				this->front_os << this->connection_pool << std::endl;	
+				this->front_os << *(this->connection_pool) << std::endl;	
 			})
 		);
 
 		this->cui_shell.Register("close", "<host_name> <port_number> close connection",
 			neuria::shell::ShellFunc(
 					[this](const neuria::shell::CuiShell::ArgList& arg_list){
-				this->connection_pool.PickUpAndQuote(
+				this->connection_pool->PickUpAndQuote(
 					[arg_list](const neuria::network::Connection::Ptr& connection) -> bool{
 						return connection->GetRemoteHostName() == 
 							neuria::network::HostName(arg_list.at(1)) && 
@@ -262,7 +263,7 @@ public:
 					command::EchoCommand::GetRequestCommandId(), 
 					command::EchoCommand(arg_list.at(1)).Serialize()
 				);
-				connection_pool.ForEach([wrapper](
+				connection_pool->ForEach([wrapper](
 						const neuria::network::Connection::Ptr& connection){
 					connection->Send(
 						wrapper.Serialize(),
@@ -284,7 +285,7 @@ public:
 						neuria::command::CreateStringFromByteArray(big_byte_array))
 							.Serialize()
 				);
-				connection_pool.ForEach([wrapper](
+				connection_pool->ForEach([wrapper](
 						const neuria::network::Connection::Ptr& connection){
 					connection->Send(
 						wrapper.Serialize(),
@@ -324,7 +325,7 @@ public:
 							const auto connection = neuria::network::Connection::Create(
 								socket, this->buffer_size
 							);
-							this->connection_pool.Add(connection);
+							this->connection_pool->Add(connection);
 							this->StartReceive(connection);
 							connection->Send(wrapper.Serialize(), 
 								neuria::network::OnSendedFunc([connection](){
@@ -400,7 +401,7 @@ public:
 					file_key_hash_command.Serialize()
 				);
 				
-				this->connection_pool.QuoteRandomConnection([wrapper](
+				this->connection_pool->QuoteRandomConnection([wrapper](
 						const neuria::network::Connection::Ptr& connection){
 					connection->Send(
 						wrapper.Serialize(),
@@ -423,7 +424,7 @@ public:
 					file_key_hash_command.Serialize()
 				);
 				
-				this->connection_pool.QuoteRandomConnection([wrapper](
+				this->connection_pool->QuoteRandomConnection([wrapper](
 						const neuria::network::Connection::Ptr& connection){
 					connection->Send(
 						wrapper.Serialize(),
@@ -642,7 +643,7 @@ public:
 									socket, this->buffer_size
 								);
 								this->log_os << "Added!!" << std::endl;
-								this->connection_pool.Add(connection);
+								this->connection_pool->Add(connection);
 								this->StartReceive(connection);
 								connection->Send(
 									fetch_push_wrapper.Serialize(),
@@ -668,7 +669,7 @@ public:
 							syncia::command::FileKeyHashCommand::GetFetchPullCommandId(), 
 							temp_file_key_hash_command.Serialize()
 						);
-						this->connection_pool.QuoteRandomConnection([fetch_pull_wrapper](
+						this->connection_pool->QuoteRandomConnection([fetch_pull_wrapper](
 								const neuria::network::Connection::Ptr& connection){
 							connection->Send(
 								fetch_pull_wrapper.Serialize(),
@@ -724,7 +725,7 @@ public:
 						socket, this->buffer_size
 					);
 					this->log_os << "Added!!" << std::endl;
-					this->connection_pool.Add(connection);
+					this->connection_pool->Add(connection);
 					this->StartReceive(connection);
 					connection->Send(
 						fetch_push_wrapper.Serialize(),
@@ -798,7 +799,7 @@ public:
 									socket, this->buffer_size
 								);
 								this->log_os << "Added!!" << std::endl;
-								this->connection_pool.Add(connection);
+								this->connection_pool->Add(connection);
 								this->StartReceive(connection);
 								connection->Send(
 									fetch_push_wrapper.Serialize(),
@@ -824,7 +825,7 @@ public:
 							syncia::command::FileKeyHashCommand::GetSpreadPullCommandId(), 
 							temp_file_key_hash_command.Serialize()
 						);
-						this->connection_pool.QuoteRandomConnection([fetch_pull_wrapper](
+						this->connection_pool->QuoteRandomConnection([fetch_pull_wrapper](
 								const neuria::network::Connection::Ptr& connection){
 							connection->Send(
 								fetch_pull_wrapper.Serialize(),
@@ -879,7 +880,7 @@ public:
 						socket, this->buffer_size
 					);
 					this->log_os << "Added!!" << std::endl;
-					this->connection_pool.Add(connection);
+					this->connection_pool->Add(connection);
 					this->StartReceive(connection);
 					connection->Send(
 						fetch_push_wrapper.Serialize(),
@@ -967,7 +968,7 @@ private:
 	neuria::shell::CuiShell cui_shell;
 	neuria::command::CommandDispatcher command_dispatcher;
 	neuria::network::Client client;
-	neuria::network::ConnectionPool connection_pool;//<-thread safe :)
+	neuria::network::ConnectionPool::Ptr connection_pool;//<-thread safe :)
 	//config::LinkDb::Ptr link_db;//<- thread safe too ;)
 	database::FileKeyHashDb::Ptr search_file_key_hash_db;//<- thread safe too ;)
 	database::FileKeyHashDb::Ptr spread_file_key_hash_db;//<- thread safe too ;)
