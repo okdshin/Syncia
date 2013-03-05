@@ -19,7 +19,7 @@ private:
 	NodeId node_id;
 };
 
-auto operator==(const Link& left, const Link& right) -> bool {
+inline auto operator==(const Link& left, const Link& right) -> bool {
 	return left.GetNodeId() == right.GetNodeId();	
 }
 
