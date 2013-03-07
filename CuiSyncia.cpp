@@ -15,13 +15,20 @@ int main(int argc, char* argv[])
 		port_number = (boost::lexical_cast<int>(argv[2]));
 	}
 	boost::asio::io_service io_service;
-	/*
 	const auto link_db =
-		config::CreateBasicLinkDb(io_service);
-	*/
+		config::CreateLinkDbWithFile(io_service, "links.txt");
 	const auto connection_pool = 
 		neuria::network::ConnectionPool::Create(io_service, 
-			neuria::network::OnConnectionAdded(),
+			neuria::network::OnConnectionAdded(
+					[](const neuria::network::Connection::ConstPtr& connection){
+				/*
+				const auto node_id = 
+					CreateNodeIdFromHostNameAndPortNumber(
+						connection->GetRemoteHostName(),
+						connection->GetRemotePortNumber()
+					);
+				*/
+			}),
 			neuria::network::OnConnectionRemoved());
 	const auto search_file_key_hash_db = 
 		database::CreateStandardFileKeyHashDb(io_service);
@@ -32,7 +39,7 @@ int main(int argc, char* argv[])
 		host_name, port_number,
 		neuria::network::BufferSize(256),
 		database::FileSystemPath("./download"),
-		//link_db,
+		link_db,
 		connection_pool,
 		search_file_key_hash_db,
 		spread_file_key_hash_db,
@@ -48,6 +55,7 @@ int main(int argc, char* argv[])
 			boost::bind(&boost::asio::io_service::run, &io_service)
 		);
 	}
+	cui_syncia.CreateInitialLink();
 	cui_syncia.StartAcceptInBackground();
 	cui_syncia.StartCuiShell();
 	thread_group.join_all();

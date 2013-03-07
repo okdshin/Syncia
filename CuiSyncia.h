@@ -18,17 +18,16 @@
 
 namespace syncia
 {
-inline auto CreateNodeIdFromHostNameAndPortNumber(
+inline auto CreateNodeIdStrFromHostNameAndPortNumber(
 		const neuria::network::HostName& host_name,
-		const neuria::network::PortNumber& port_num) -> database::NodeId {
-	return database::NodeId(host_name.ToString()+":"+port_num.ToString());
+		const neuria::network::PortNumber& port_num) -> std::string {
+	return host_name.ToString()+":"+port_num.ToString();
 }
 
-inline auto CreateHostNameAndPortNumberFromNodeId(
-		const database::NodeId& node_id) 
+inline auto CreateHostNameAndPortNumberFromNodeIdStr(
+		const std::string& node_id_str) 
 			-> std::tuple<neuria::network::HostName, neuria::network::PortNumber>{
 	std::vector<std::string> result_str_list;
-	auto node_id_str = node_id.ToString();
 	boost::algorithm::split(
 		result_str_list, node_id_str, boost::is_any_of(":"));
 	if(result_str_list.size() != 2){
@@ -55,7 +54,7 @@ public:
 			const neuria::network::PortNumber& port_num,
 			const neuria::network::BufferSize& buffer_size,
 			const database::FileSystemPath& download_directory_path,
-			//const config::LinkDb::Ptr link_db,
+			const config::LinkDb::Ptr link_db,
 			const neuria::network::ConnectionPool::Ptr& connection_pool,
 			const SearchFileKeyHashDb& search_file_key_hash_db,
 			const SpreadFileKeyHashDb& spread_file_key_hash_db,
@@ -63,7 +62,7 @@ public:
 			std::ostream& log_os,
 			std::istream& is) 
 		: front_os(front_os), log_os(log_os), is(is), io_service(io_service), work(io_service),
-			node_id(CreateNodeIdFromHostNameAndPortNumber(host_name, port_num)), 
+			node_id_str(CreateNodeIdStrFromHostNameAndPortNumber(host_name, port_num)), 
 			buffer_size(buffer_size),
 			server(io_service, port_num,
 				neuria::network::OnAcceptedFunc(
@@ -84,7 +83,7 @@ public:
 				neuria::command::OnFailedFunc()
 			),
 			client(io_service),
-			//link_db(link_db),
+			link_db(link_db),
 			connection_pool(connection_pool),
 			search_file_key_hash_db(search_file_key_hash_db()),
 			spread_file_key_hash_db(spread_file_key_hash_db()),
@@ -113,10 +112,13 @@ private:
 			this->connection_pool->Add(connection);
 			/*
 			this->link_db->Add(config::NodeId(
-				CreateNodeIdFromHostNameAndPortNumber(
+				CreateNodeIdStrFromHostNameAndPortNumber(
 					host_name, port_number).ToString()));
 			*/
 			this->StartReceive(connection);
+			this->link_db->Add(syncia::config::NodeId(
+				CreateNodeIdStrFromHostNameAndPortNumber(
+					host_name, port_number)));
 		}); 
 		this->client.Connect(host_name, port_number, 
 			on_connected,
@@ -185,6 +187,14 @@ public:
 				});
 			})
 		);
+		
+		this->cui_shell.Register("linkdb", 
+			"show link db.", 
+			neuria::shell::ShellFunc(
+					[this](const neuria::shell::CuiShell::ArgList& arg_list){
+				this->front_os << *(this->link_db) << std::endl;
+			})
+		);
 
 		this->cui_shell.Register("upload", "<file_name> add file to upload list.", 
 			neuria::shell::ShellFunc(
@@ -196,7 +206,7 @@ public:
 				}
 				this->spread_file_key_hash_db->Add(
 					database::FileKeyHash(
-						this->node_id, 
+						database::NodeId(this->node_id_str), 
 						database::FileSystemPath(arg_list.at(1)))
 				);
 			})
@@ -220,11 +230,10 @@ public:
 		this->cui_shell.Register("link", "<host_name> <port_num> create link.", 
 			neuria::shell::ShellFunc(
 					[this](const neuria::shell::CuiShell::ArgList& arg_list){
-				this->CreateLink(
-					neuria::network::HostName(arg_list.at(1)),
-					neuria::network::PortNumber(
-						boost::lexical_cast<int>(arg_list.at(2)))
-				);
+				const auto host_name = neuria::network::HostName(arg_list.at(1));
+				const auto port_number = neuria::network::PortNumber(
+						boost::lexical_cast<int>(arg_list.at(2)));
+				this->CreateLink(host_name, port_number);
 			})
 		);
 		
@@ -316,8 +325,8 @@ public:
 							file_command.Serialize()
 						);
 						const auto host_and_port_tuple = 
-							CreateHostNameAndPortNumberFromNodeId(
-								file_key_hash.GetOwnerId());
+							CreateHostNameAndPortNumberFromNodeIdStr(
+								file_key_hash.GetOwnerId().ToString());
 						
 						auto on_connected = neuria::network::OnConnectedFunc(
 								[this, wrapper](neuria::network::Socket::Ptr socket){
@@ -393,7 +402,7 @@ public:
 				}
 				const auto file_key_hash_command = 
 					command::FileKeyHashCommand(
-						command::NodeId(this->node_id.ToString()),
+						command::NodeId(this->node_id_str),
 						command::Keyword(keyword_str));
 				this->log_os << file_key_hash_command << std::endl;
 				auto wrapper = neuria::command::DispatchCommandWrapper(
@@ -417,7 +426,7 @@ public:
 					[this](const neuria::shell::CuiShell::ArgList& arg_list){
 				const auto file_key_hash_command = 
 					command::FileKeyHashCommand(
-						command::NodeId(this->node_id.ToString()));
+						command::NodeId(this->node_id_str));
 				this->log_os << file_key_hash_command << std::endl;
 				auto wrapper = neuria::command::DispatchCommandWrapper(
 					syncia::command::FileKeyHashCommand::GetSpreadPullCommandId(), 
@@ -615,10 +624,10 @@ public:
 						//file_key_hash_command.AddFileKeyHash()
 						
 						temp_file_key_hash_command.AddNodeIdOnRoute(
-							command::NodeId(this->node_id.ToString()));
+							command::NodeId(this->node_id_str));
 						if(this->max_hop_count < temp_file_key_hash_command.GetCurrentHopCount()){
 							if(temp_file_key_hash_command.GetInitialSenderNodeId() == 
-									command::NodeId(this->node_id.ToString())){
+									command::NodeId(this->node_id_str)){
 								temp_file_key_hash_command.ForEach(
 										[this](const neuria::command::ByteArray& byte_array){
 									const auto file_key_hash = 
@@ -653,10 +662,10 @@ public:
 
 							}); 
 							const auto next_node_id = temp_file_key_hash_command.GetNextPushNodeId(
-								command::NodeId(this->node_id.ToString()));
+								command::NodeId(this->node_id_str));
 							const auto host_port_tuple = 
-								CreateHostNameAndPortNumberFromNodeId(
-									database::NodeId(next_node_id.ToString()));
+								CreateHostNameAndPortNumberFromNodeIdStr(
+									next_node_id.ToString());
 							this->client.Connect(
 								std::get<0>(host_port_tuple), 
 								std::get<1>(host_port_tuple),  
@@ -696,9 +705,9 @@ public:
 				this->log_os << file_key_hash_command << std::endl;
 				
 				file_key_hash_command.AddNodeIdOnRoute(
-					command::NodeId(this->node_id.ToString()));
+					command::NodeId(this->node_id_str));
 				if(file_key_hash_command.GetInitialSenderNodeId() == 
-						command::NodeId(this->node_id.ToString())){
+						command::NodeId(this->node_id_str)){
 					file_key_hash_command.ForEach(
 							[this](const neuria::command::ByteArray& byte_array){
 						this->log_os << "for each ininin" << std::endl;
@@ -735,10 +744,9 @@ public:
 
 				}); 
 				const auto next_node_id = file_key_hash_command.GetNextPushNodeId(
-					command::NodeId(this->node_id.ToString()));
+					command::NodeId(this->node_id_str));
 				const auto host_port_tuple = 
-					CreateHostNameAndPortNumberFromNodeId(
-						database::NodeId(next_node_id.ToString()));
+					CreateHostNameAndPortNumberFromNodeIdStr(next_node_id.ToString());
 				this->client.Connect(
 					std::get<0>(host_port_tuple), 
 					std::get<1>(host_port_tuple),  
@@ -770,10 +778,10 @@ public:
 						//file_key_hash_command.AddFileKeyHash()
 						
 						temp_file_key_hash_command.AddNodeIdOnRoute(
-							command::NodeId(this->node_id.ToString()));
+							command::NodeId(this->node_id_str));
 						if(this->max_hop_count < temp_file_key_hash_command.GetCurrentHopCount()){
 							if(temp_file_key_hash_command.GetInitialSenderNodeId() == 
-									command::NodeId(this->node_id.ToString())){
+									command::NodeId(this->node_id_str)){
 								temp_file_key_hash_command.ForEach(
 										[this](const neuria::command::ByteArray& byte_array){
 									this->log_os << "for each ininin" << std::endl;
@@ -809,10 +817,9 @@ public:
 
 							}); 
 							const auto next_node_id = temp_file_key_hash_command.GetNextPushNodeId(
-								command::NodeId(this->node_id.ToString()));
+								command::NodeId(this->node_id_str));
 							const auto host_port_tuple = 
-								CreateHostNameAndPortNumberFromNodeId(
-									database::NodeId(next_node_id.ToString()));
+								CreateHostNameAndPortNumberFromNodeIdStr(next_node_id.ToString());
 							this->client.Connect(
 								std::get<0>(host_port_tuple), 
 								std::get<1>(host_port_tuple),  
@@ -852,9 +859,9 @@ public:
 				this->log_os << file_key_hash_command << std::endl;
 				
 				file_key_hash_command.AddNodeIdOnRoute(
-					command::NodeId(this->node_id.ToString()));
+					command::NodeId(this->node_id_str));
 				if(file_key_hash_command.GetInitialSenderNodeId() == 
-						command::NodeId(this->node_id.ToString())){
+						command::NodeId(this->node_id_str)){
 					file_key_hash_command.ForEach(
 							[this](const neuria::command::ByteArray& byte_array){
 						this->log_os << "for each ininin" << std::endl;
@@ -890,10 +897,9 @@ public:
 
 				}); 
 				const auto next_node_id = file_key_hash_command.GetNextPushNodeId(
-					command::NodeId(this->node_id.ToString()));
+					command::NodeId(this->node_id_str));
 				const auto host_port_tuple = 
-					CreateHostNameAndPortNumberFromNodeId(
-						database::NodeId(next_node_id.ToString()));
+					CreateHostNameAndPortNumberFromNodeIdStr(next_node_id.ToString());
 				this->client.Connect(
 					std::get<0>(host_port_tuple), 
 					std::get<1>(host_port_tuple),  
@@ -938,10 +944,23 @@ public:
 		);	
 	}
 
+	auto CreateInitialLink() -> void {
+		this->io_service.post([this](){
+			this->link_db->QuoteLinkList([this](const config::LinkList& link_list){
+				const auto host_and_port = 
+					CreateHostNameAndPortNumberFromNodeIdStr(
+						link_list.front().GetNodeId().ToString());
+				this->CreateLink(
+					std::get<0>(host_and_port), std::get<1>(host_and_port));
+			});
+		});
+			
+	}
+
 	auto StartAcceptInBackground() -> void {
 		this->io_service.post([this](){
 			this->front_os << boost::format("ServerReady:\"%1%\"") 
-				% this->node_id.ToString()
+				% this->node_id_str
 			<< std::endl;
 			this->server.StartAccept();
 		});
@@ -962,14 +981,14 @@ private:
 	std::istream& is;
 	boost::asio::io_service& io_service;
 	boost::asio::io_service::work work;
-	const database::NodeId node_id;
+	const std::string node_id_str;
 	const neuria::network::BufferSize buffer_size;
 	neuria::network::Server server;
 	neuria::shell::CuiShell cui_shell;
 	neuria::command::CommandDispatcher command_dispatcher;
 	neuria::network::Client client;
+	config::LinkDb::Ptr link_db;//<- thread safe ;)
 	neuria::network::ConnectionPool::Ptr connection_pool;//<-thread safe :)
-	//config::LinkDb::Ptr link_db;//<- thread safe too ;)
 	database::FileKeyHashDb::Ptr search_file_key_hash_db;//<- thread safe too ;)
 	database::FileKeyHashDb::Ptr spread_file_key_hash_db;//<- thread safe too ;)
 	neuria::thread_safe::ThreadSafeVariable<database::FileSystemPath> 
